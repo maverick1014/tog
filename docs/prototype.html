@@ -174,6 +174,9 @@
   .g2 { grid-template-columns: 1.4fr 1fr; }
   @media (max-width: 900px) { .g4 { grid-template-columns: repeat(2,1fr);} .g2,.g3 { grid-template-columns: 1fr; } }
 
+  .glayout { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .glayout { grid-template-columns: 1fr; } }
+
   .card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: var(--shadow); padding: 18px 20px;
@@ -358,6 +361,7 @@
     <div class="nav-group">
       <div class="nav-label">牧养</div>
       <a class="nav-link" data-nav="members"><span class="ic">👥</span> 成员目录</a>
+      <a class="nav-link" data-nav="groups"><span class="ic">🔗</span> 小组管理</a>
       <a class="nav-link" data-nav="events"><span class="ic">📅</span> 聚会与出席</a>
       <a class="nav-link" data-nav="donations"><span class="ic">🕊</span> 奉献管理</a>
     </div>
@@ -497,6 +501,39 @@
         </div>
       </section>
 
+      <!-- ============ GROUPS ============ -->
+      <section class="view" data-view="groups">
+        <div class="between wrap" style="margin-bottom:16px;">
+          <div class="flex gap8 wrap" id="groupChips"></div>
+          <button class="btn accent sm" id="addGroupBtn">＋ 新增小组</button>
+        </div>
+        <div class="glayout">
+          <div class="card" id="groupForm">
+            <div class="card-head"><h3>小组资料 · 带领团队</h3><span class="badge b-good" id="savedFlag" style="display:none">✓ 已保存</span></div>
+            <div class="field"><label>小组名称</label><input id="gName" placeholder="例如：恩典小组"></div>
+            <div class="field"><label>简介</label><input id="gDesc" placeholder="小组简介 / 聚会时间"></div>
+            <div class="section-title" style="margin-top:8px;">带领团队</div>
+            <div class="field"><label>小组长</label><select id="gLeader"></select></div>
+            <div class="field"><label>副组长</label><select id="gAssistant"></select></div>
+            <div class="field"><label>实习组长</label><select id="gIntern"></select></div>
+            <div class="note" style="margin:4px 0 14px;">💡 带领团队须从<strong>本组成员</strong>中选择。若组内没有该成员，请先在右侧添加。</div>
+            <div class="flex gap8">
+              <button class="btn" id="gSave">保存设定</button>
+              <button class="btn ghost" id="gDelete">删除小组</button>
+            </div>
+          </div>
+
+          <div class="card" id="groupMembersCard">
+            <div class="card-head"><h3>组员分配 <span class="muted" id="gCount" style="font-weight:400;font-size:13px"></span></h3></div>
+            <div class="flex gap8" style="margin-bottom:14px;">
+              <select id="gAddSelect" style="flex:1;"></select>
+              <button class="btn accent" id="gAddBtn">＋ 添加成员</button>
+            </div>
+            <div class="table-wrap"><table><tbody id="gMemberBody"></tbody></table></div>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ EVENTS ============ -->
       <section class="view" data-view="events">
         <div class="grid g3">
@@ -629,13 +666,14 @@
   var titles = {
     dashboard: ["仪表盘", "教会牧养概览 · 2026 年 7 月"],
     members: ["成员目录", "42 位成员 · 七级身份分层"],
+    groups: ["小组管理", "编排小组 · 分配组长与组员"],
     events: ["聚会与出席", "安排聚会并记录出席"],
     donations: ["奉献管理", "记录与统计教会奉献"],
     trainings: ["培训课程", "课程目录 · 报名 · 核对名单"],
     discipleship: ["四十天一对一守望", "级联门训 · 牧者实时监控"]
   };
   var actionLabels = {
-    dashboard: "+ 新增", members: "+ 新增成员", events: "+ 新增聚会",
+    dashboard: "+ 新增", members: "+ 新增成员", groups: "+ 新增小组", events: "+ 新增聚会",
     donations: "+ 记录奉献", trainings: "+ 新增课程", discipleship: "+ 新增对子"
   };
   function go(view) {
@@ -801,6 +839,102 @@
       '<td>' + tick(n[2][0]) + '</td><td>' + tick(n[2][1]) + '</td><td>' + tick(n[2][2]) + '</td>' +
       '<td><span class="badge ' + nlStatus[n[3]] + '">' + n[3] + '</span></td></tr>';
   }).join("");
+
+  // ---------- Groups (小组管理) ----------
+  var allMemberNames = members.map(function (m) { return m[0]; });
+  var groups = [
+    { id: "g1", name: "恩典小组", desc: "主日细胞小组 · 周六 15:00", leader: "林玛丽", assistant: "黄彼得", intern: "", members: ["林玛丽", "黄彼得", "陈路得"] },
+    { id: "g2", name: "青年小组", desc: "青年团契 · 周五 20:00", leader: "", assistant: "", intern: "吴恩慈", members: ["吴恩慈", "王但以理", "李撒母耳"] },
+    { id: "g3", name: "迦南小组", desc: "新家庭小组 · 周日 14:00", leader: "刘信实", assistant: "", intern: "", members: ["刘信实", "张恩典", "郑喜乐"] }
+  ];
+  var gid = "g1", gseq = 3;
+  function curGroup() { return groups.filter(function (g) { return g.id === gid; })[0]; }
+
+  function opts(names, sel, ph) {
+    return '<option value="">' + ph + '</option>' + names.map(function (n) {
+      return '<option' + (n === sel ? ' selected' : '') + '>' + n + '</option>';
+    }).join("");
+  }
+  function memRoleTag(g, n) {
+    if (n === g.leader) return '<span class="badge b-brand"><i class="role-dot" style="background:#9e1c1f"></i> 小组长</span>';
+    if (n === g.assistant) return '<span class="badge b-brand"><i class="role-dot" style="background:#b23530"></i> 副组长</span>';
+    if (n === g.intern) return '<span class="badge b-accent"><i class="role-dot" style="background:#d08375"></i> 实习组长</span>';
+    return '<span class="badge b-gray">组员</span>';
+  }
+  function renderGroupChips() {
+    document.getElementById("groupChips").innerHTML = groups.map(function (g) {
+      return '<button class="chip' + (g.id === gid ? ' on' : '') + '" data-gid="' + g.id + '">' + g.name + ' · ' + g.members.length + '</button>';
+    }).join("");
+  }
+  function renderGroupDetail() {
+    var g = curGroup(); if (!g) return;
+    document.getElementById("gName").value = g.name;
+    document.getElementById("gDesc").value = g.desc;
+    document.getElementById("gLeader").innerHTML = opts(g.members, g.leader, "— 未指定 —");
+    document.getElementById("gAssistant").innerHTML = opts(g.members, g.assistant, "— 未指定 —");
+    document.getElementById("gIntern").innerHTML = opts(g.members, g.intern, "— 未指定 —");
+    document.getElementById("gCount").textContent = "（" + g.members.length + " 人）";
+    var avail = allMemberNames.filter(function (n) { return g.members.indexOf(n) < 0; });
+    document.getElementById("gAddSelect").innerHTML = opts(avail, "", "选择成员加入本组…");
+    // leadership first, then the rest
+    var ordered = g.members.slice().sort(function (a, b) {
+      function rank(n) { return n === g.leader ? 0 : n === g.assistant ? 1 : n === g.intern ? 2 : 3; }
+      return rank(a) - rank(b);
+    });
+    document.getElementById("gMemberBody").innerHTML = ordered.map(function (n) {
+      return '<tr><td><div class="person"><div class="avatar">' + n[0] + '</div><strong>' + n + '</strong></div></td>' +
+        '<td>' + memRoleTag(g, n) + '</td>' +
+        '<td style="text-align:right"><button class="btn ghost sm" data-remove="' + n + '">移除</button></td></tr>';
+    }).join("");
+  }
+  function renderGroups() { renderGroupChips(); renderGroupDetail(); }
+
+  document.getElementById("groupChips").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-gid]"); if (!b) return;
+    gid = b.getAttribute("data-gid"); renderGroups();
+  });
+  function setRole(field, val) {
+    var g = curGroup();
+    // a person holds at most one leadership role in the group
+    ["leader", "assistant", "intern"].forEach(function (r) { if (val && g[r] === val) g[r] = ""; });
+    g[field] = val; renderGroupDetail();
+  }
+  document.getElementById("gLeader").addEventListener("change", function () { setRole("leader", this.value); });
+  document.getElementById("gAssistant").addEventListener("change", function () { setRole("assistant", this.value); });
+  document.getElementById("gIntern").addEventListener("change", function () { setRole("intern", this.value); });
+  document.getElementById("gAddBtn").addEventListener("click", function () {
+    var sel = document.getElementById("gAddSelect"); var n = sel.value; if (!n) return;
+    var g = curGroup(); if (g.members.indexOf(n) < 0) g.members.push(n);
+    renderGroups();
+  });
+  document.getElementById("gMemberBody").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-remove]"); if (!b) return;
+    var n = b.getAttribute("data-remove"); var g = curGroup();
+    g.members = g.members.filter(function (x) { return x !== n; });
+    ["leader", "assistant", "intern"].forEach(function (r) { if (g[r] === n) g[r] = ""; });
+    renderGroups();
+  });
+  document.getElementById("gSave").addEventListener("click", function () {
+    var g = curGroup();
+    g.name = document.getElementById("gName").value || g.name;
+    g.desc = document.getElementById("gDesc").value;
+    var flag = document.getElementById("savedFlag");
+    flag.style.display = "inline-flex";
+    renderGroupChips();
+    setTimeout(function () { flag.style.display = "none"; }, 1600);
+  });
+  document.getElementById("gDelete").addEventListener("click", function () {
+    if (groups.length <= 1) return;
+    groups = groups.filter(function (g) { return g.id !== gid; });
+    gid = groups[0].id; renderGroups();
+  });
+  document.getElementById("addGroupBtn").addEventListener("click", function () {
+    gseq++; var id = "g" + gseq;
+    groups.push({ id: id, name: "新小组 " + gseq, desc: "", leader: "", assistant: "", intern: "", members: [] });
+    gid = id; renderGroups();
+    document.getElementById("gName").focus();
+  });
+  renderGroups();
 
   // ---------- 40-day grid ----------
   var grid = document.getElementById("dayGrid");
