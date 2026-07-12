@@ -242,6 +242,9 @@ create table discipleship_pairs (
   parent_pair_id uuid references discipleship_pairs(id) on delete set null,
   status         pair_status not null default 'active',
   start_date     date default current_date,
+  -- Unguessable token for the mentor's private daily-form link
+  -- (/d/<form_token>): lets the mentor fill in progress without logging in.
+  form_token     uuid not null default gen_random_uuid() unique,
   created_at     timestamptz not null default now(),
   unique (program_id, trainee_id),
   check (mentor_id <> trainee_id)

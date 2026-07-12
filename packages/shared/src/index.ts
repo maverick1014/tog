@@ -270,6 +270,8 @@ export interface DiscipleshipPair {
   parent_pair_id: string | null;
   status: PairStatus;
   start_date: string | null;
+  /** Unguessable token for the mentor's private daily-form link. */
+  form_token: string;
   created_at: string;
 }
 

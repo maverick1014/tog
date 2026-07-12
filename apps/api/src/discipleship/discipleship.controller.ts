@@ -61,4 +61,15 @@ export class DiscipleshipController {
   ) {
     return this.service.upsertProgress(id, dto);
   }
+
+  // Private per-pair form link (no login): GET the pair, POST today's entry.
+  @Get('form/:token') getByToken(@Param('token') token: string) {
+    return this.service.getPairByToken(token);
+  }
+  @Post('form/:token/progress') submitByToken(
+    @Param('token') token: string,
+    @Body() dto: ProgressDto,
+  ) {
+    return this.service.submitProgressByToken(token, dto);
+  }
 }

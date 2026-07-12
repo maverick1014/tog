@@ -135,4 +135,38 @@ export class DiscipleshipService {
       .single()
       .then(unwrap);
   }
+
+  // --- Private form link (opened by the mentor, no login) -----------------
+  /** Resolve a pair by its shareable form_token, with program + progress. */
+  async getPairByToken(token: string) {
+    const pair = unwrap(
+      await this.supabase.db
+        .from('discipleship_pairs')
+        .select(
+          '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name), program:discipleship_programs(id,name,total_days)',
+        )
+        .eq('form_token', token)
+        .single(),
+    ) as { id: string };
+    const progress = unwrap(
+      await this.supabase.db
+        .from('discipleship_progress')
+        .select('*')
+        .eq('pair_id', pair.id)
+        .order('day_number'),
+    );
+    return { ...(pair as object), progress };
+  }
+
+  /** Upsert today's progress via the token — the mentor's daily form submit. */
+  async submitProgressByToken(token: string, dto: ProgressDto) {
+    const pair = unwrap(
+      await this.supabase.db
+        .from('discipleship_pairs')
+        .select('id')
+        .eq('form_token', token)
+        .single(),
+    ) as { id: string };
+    return this.upsertProgress(pair.id, dto);
+  }
 }
