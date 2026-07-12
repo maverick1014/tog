@@ -1,18 +1,25 @@
 import {
+  ChurchRole,
+  displayRoleZh,
   EnrollmentStatus,
   EventType,
-  MEMBER_ROLE_LABELS,
-  MemberRole,
+  GROUP_POSITION_LABELS,
+  GroupPosition,
 } from '@tog/shared';
 
-export function roleLabel(role: MemberRole | string): string {
-  const l = MEMBER_ROLE_LABELS[role as MemberRole];
-  return l ? `${l.zh} · ${l.en}` : String(role);
+/** Chinese label for a group position (小组长/副组长/…). */
+export function positionZh(pos: GroupPosition | string | null): string {
+  if (!pos) return '未分组';
+  const l = GROUP_POSITION_LABELS[pos as GroupPosition];
+  return l ? l.zh : String(pos);
 }
 
-export function roleZh(role: MemberRole | string): string {
-  const l = MEMBER_ROLE_LABELS[role as MemberRole];
-  return l ? l.zh : String(role);
+/** The role shown for a member: 牧师 if pastor, else their group position. */
+export function memberRoleZh(m: {
+  church_role: ChurchRole;
+  group_position: GroupPosition | null;
+}): string {
+  return displayRoleZh(m);
 }
 
 export const EVENT_TYPE_LABELS: Record<string, string> = {

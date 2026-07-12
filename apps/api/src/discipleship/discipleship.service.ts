@@ -57,7 +57,7 @@ export class DiscipleshipService {
     let query = this.supabase.db
       .from('discipleship_pairs')
       .select(
-        '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name,role), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name,role)',
+        '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name,church_role,group_position), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name,church_role,group_position)',
       )
       .order('created_at');
     if (programId) query = query.eq('program_id', programId);
@@ -69,7 +69,7 @@ export class DiscipleshipService {
       .from('discipleship_pairs')
       .insert(dto)
       .select(
-        '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name,role), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name,role)',
+        '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name,church_role,group_position), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name,church_role,group_position)',
       )
       .single()
       .then(unwrap);
@@ -80,7 +80,7 @@ export class DiscipleshipService {
       await this.supabase.db
         .from('discipleship_pairs')
         .select(
-          '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name,role), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name,role), program:discipleship_programs(id,name,total_days)',
+          '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name,church_role,group_position), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name,church_role,group_position), program:discipleship_programs(id,name,total_days)',
         )
         .eq('id', id)
         .single(),

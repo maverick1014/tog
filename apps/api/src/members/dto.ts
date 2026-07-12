@@ -8,7 +8,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
-import { Gender, MemberRole, MemberStatus } from '@tog/shared';
+import { ChurchRole, Gender, GroupPosition, MemberStatus } from '@tog/shared';
 
 export class CreateMemberDto {
   @IsString()
@@ -38,8 +38,8 @@ export class CreateMemberDto {
   date_of_birth?: string;
 
   @IsOptional()
-  @IsEnum(MemberRole)
-  role?: MemberRole;
+  @IsEnum(ChurchRole)
+  church_role?: ChurchRole;
 
   @IsOptional()
   @IsEnum(MemberStatus)
@@ -48,6 +48,10 @@ export class CreateMemberDto {
   @IsOptional()
   @IsUUID()
   group_id?: string;
+
+  @IsOptional()
+  @IsEnum(GroupPosition)
+  group_position?: GroupPosition;
 
   @IsOptional()
   @IsUUID()

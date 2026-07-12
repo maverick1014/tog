@@ -7,10 +7,20 @@
 // Members & roles
 // ---------------------------------------------------------------------------
 
-/** Church member roles (ordered from most senior to newest). */
-export enum MemberRole {
+/**
+ * Church-level standing, stored on the member. Independent of any group.
+ */
+export enum ChurchRole {
   Pastor = 'pastor', // 牧师
-  GroupLeader = 'group_leader', // 小组长
+  Member = 'member', // 一般成员 (real rank derived from group position)
+}
+
+/**
+ * A member's classification within their group. This is where the ranks
+ * (minus 牧师) come from — allocated per member in the group setup page.
+ */
+export enum GroupPosition {
+  Leader = 'leader', // 小组长
   AssistantLeader = 'assistant_leader', // 副组长
   InternLeader = 'intern_leader', // 实习组长
   CoreMember = 'core_member', // 核心成员
@@ -18,26 +28,50 @@ export enum MemberRole {
   NewMember = 'new_member', // 新成员
 }
 
-/** Human readable labels (English + Chinese) for each role. */
-export const MEMBER_ROLE_LABELS: Record<MemberRole, { en: string; zh: string }> = {
-  [MemberRole.Pastor]: { en: 'Pastor', zh: '牧师' },
-  [MemberRole.GroupLeader]: { en: 'Group Leader', zh: '小组长' },
-  [MemberRole.AssistantLeader]: { en: 'Assistant Leader', zh: '副组长' },
-  [MemberRole.InternLeader]: { en: 'Intern Leader', zh: '实习组长' },
-  [MemberRole.CoreMember]: { en: 'Core Member', zh: '核心成员' },
-  [MemberRole.RegularMember]: { en: 'Regular Member', zh: '普通成员' },
-  [MemberRole.NewMember]: { en: 'New Member', zh: '新成员' },
+/** Positions that count as group leadership (one holder per group each). */
+export const LEADERSHIP_POSITIONS: GroupPosition[] = [
+  GroupPosition.Leader,
+  GroupPosition.AssistantLeader,
+  GroupPosition.InternLeader,
+];
+
+export const GROUP_POSITION_LABELS: Record<GroupPosition, { en: string; zh: string }> = {
+  [GroupPosition.Leader]: { en: 'Group Leader', zh: '小组长' },
+  [GroupPosition.AssistantLeader]: { en: 'Assistant Leader', zh: '副组长' },
+  [GroupPosition.InternLeader]: { en: 'Intern Leader', zh: '实习组长' },
+  [GroupPosition.CoreMember]: { en: 'Core Member', zh: '核心成员' },
+  [GroupPosition.RegularMember]: { en: 'Regular Member', zh: '普通成员' },
+  [GroupPosition.NewMember]: { en: 'New Member', zh: '新成员' },
 };
 
-export const MEMBER_ROLE_ORDER: MemberRole[] = [
-  MemberRole.Pastor,
-  MemberRole.GroupLeader,
-  MemberRole.AssistantLeader,
-  MemberRole.InternLeader,
-  MemberRole.CoreMember,
-  MemberRole.RegularMember,
-  MemberRole.NewMember,
+/** Full display order for the seven ranks (pastor first, then group positions). */
+export const DISPLAY_ROLE_ORDER: string[] = [
+  '牧师',
+  '小组长',
+  '副组长',
+  '实习组长',
+  '核心成员',
+  '普通成员',
+  '新成员',
 ];
+
+/** The role shown in the directory: 牧师 if pastor, else the group position. */
+export function displayRoleZh(m: {
+  church_role: ChurchRole;
+  group_position: GroupPosition | null;
+}): string {
+  if (m.church_role === ChurchRole.Pastor) return '牧师';
+  if (m.group_position) return GROUP_POSITION_LABELS[m.group_position].zh;
+  return '未分组';
+}
+
+/** Only a core member may be promoted to a leadership position. */
+export function canPromoteToLeadership(pos: GroupPosition | null): boolean {
+  return (
+    pos === GroupPosition.CoreMember ||
+    (pos != null && LEADERSHIP_POSITIONS.includes(pos))
+  );
+}
 
 export enum MemberStatus {
   Active = 'active',
@@ -58,9 +92,10 @@ export interface Member {
   phone: string | null;
   gender: Gender | null;
   date_of_birth: string | null;
-  role: MemberRole;
+  church_role: ChurchRole;
   status: MemberStatus;
   group_id: string | null;
+  group_position: GroupPosition | null;
   household_id: string | null;
   joined_at: string | null;
   notes: string | null;
@@ -76,8 +111,8 @@ export interface Group {
   id: string;
   name: string;
   description: string | null;
-  leader_id: string | null;
   created_at: string;
+  // Leadership is derived from members.group_position, not stored here.
 }
 
 export interface Household {

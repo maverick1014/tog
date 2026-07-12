@@ -10,13 +10,20 @@ const TABLE = 'members';
 export class MembersService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  async findAll(filters: { role?: string; group_id?: string; q?: string }) {
+  async findAll(filters: {
+    church_role?: string;
+    group_position?: string;
+    group_id?: string;
+    q?: string;
+  }) {
     let query = this.supabase.db
       .from(TABLE)
       .select('*, group:groups(id,name), household:households(id,name)')
       .order('full_name', { ascending: true });
 
-    if (filters.role) query = query.eq('role', filters.role);
+    if (filters.church_role) query = query.eq('church_role', filters.church_role);
+    if (filters.group_position)
+      query = query.eq('group_position', filters.group_position);
     if (filters.group_id) query = query.eq('group_id', filters.group_id);
     if (filters.q) query = query.ilike('full_name', `%${filters.q}%`);
 

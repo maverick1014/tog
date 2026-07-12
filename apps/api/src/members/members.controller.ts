@@ -17,11 +17,17 @@ export class MembersController {
 
   @Get()
   findAll(
-    @Query('role') role?: string,
+    @Query('church_role') churchRole?: string,
+    @Query('group_position') groupPosition?: string,
     @Query('group_id') groupId?: string,
     @Query('q') q?: string,
   ) {
-    return this.members.findAll({ role, group_id: groupId, q });
+    return this.members.findAll({
+      church_role: churchRole,
+      group_position: groupPosition,
+      group_id: groupId,
+      q,
+    });
   }
 
   @Get(':id')

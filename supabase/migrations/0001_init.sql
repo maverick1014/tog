@@ -19,9 +19,17 @@ $$ language plpgsql;
 -- ===========================================================================
 -- Enums
 -- ===========================================================================
-create type member_role as enum (
-  'pastor',           -- 牧师
-  'group_leader',     -- 小组长
+-- Church-level standing (lives on the member; independent of any group).
+create type church_role as enum (
+  'pastor',  -- 牧师 (church leadership)
+  'member'   -- 一般成员 (standing derived from group position)
+);
+
+-- A member's classification *within* their group. This is where the seven
+-- ranks (minus 牧师) actually come from: allocated per member in the group
+-- setup page. A member has at most one position in at most one group.
+create type group_position as enum (
+  'leader',           -- 小组长
   'assistant_leader', -- 副组长
   'intern_leader',    -- 实习组长
   'core_member',      -- 核心成员
@@ -56,43 +64,56 @@ create table groups (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
   description text,
-  leader_id   uuid,  -- FK added after members table exists
   created_at  timestamptz not null default now()
 );
+-- Note: the leadership team (小组长/副组长/实习组长) is NOT stored here.
+-- It is derived from members.group_position, so there is a single source of
+-- truth for who leads a group (see the members table + unique indexes below).
 
 -- ===========================================================================
 -- Members
 -- ===========================================================================
 create table members (
-  id            uuid primary key default gen_random_uuid(),
-  full_name     text not null,
-  chinese_name  text,
-  email         text,
-  phone         text,
-  gender        gender_type,
-  date_of_birth date,
-  role          member_role not null default 'new_member',
-  status        member_status not null default 'active',
-  group_id      uuid references groups(id) on delete set null,
-  household_id  uuid references households(id) on delete set null,
-  joined_at     date,
-  notes         text,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
+  id             uuid primary key default gen_random_uuid(),
+  full_name      text not null,
+  chinese_name   text,
+  email          text,
+  phone          text,
+  gender         gender_type,
+  date_of_birth  date,
+  church_role    church_role not null default 'member',
+  status         member_status not null default 'active',
+  group_id       uuid references groups(id) on delete set null,
+  -- classification within group_id; null when the member is not in a group.
+  group_position group_position,
+  household_id   uuid references households(id) on delete set null,
+  joined_at      date,
+  notes          text,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  -- a position only makes sense together with a group
+  constraint members_position_needs_group
+    check (group_position is null or group_id is not null)
+  -- business rule: "only a core member may be promoted to a leadership post"
+  -- is enforced in the application layer (it is a workflow rule, not a data one).
 );
 
 create index members_group_id_idx on members(group_id);
 create index members_household_id_idx on members(household_id);
-create index members_role_idx on members(role);
+create index members_church_role_idx on members(church_role);
+create index members_group_position_idx on members(group_id, group_position);
+
+-- One 小组长 / 副组长 / 实习组长 per group (每职位一人).
+create unique index members_one_leader_per_group
+  on members(group_id) where group_position = 'leader';
+create unique index members_one_assistant_per_group
+  on members(group_id) where group_position = 'assistant_leader';
+create unique index members_one_intern_per_group
+  on members(group_id) where group_position = 'intern_leader';
 
 create trigger members_set_updated_at
   before update on members
   for each row execute function set_updated_at();
-
--- Now that members exists, wire the group leader FK.
-alter table groups
-  add constraint groups_leader_id_fkey
-  foreign key (leader_id) references members(id) on delete set null;
 
 -- ===========================================================================
 -- Events & attendance

@@ -9,14 +9,13 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { unwrap } from '../common/supabase-result';
 
 class GroupDto {
   @IsString() @MaxLength(200) name!: string;
   @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsUUID() leader_id?: string;
 }
 
 @Injectable()
@@ -26,23 +25,20 @@ class GroupsService {
   findAll() {
     return this.supabase.db
       .from('groups')
-      .select('*, leader:members!groups_leader_id_fkey(id,full_name,role)')
+      .select('*')
       .order('name')
       .then(unwrap);
   }
 
   async findOne(id: string) {
     const group = unwrap(
-      await this.supabase.db
-        .from('groups')
-        .select('*, leader:members!groups_leader_id_fkey(id,full_name,role)')
-        .eq('id', id)
-        .single(),
+      await this.supabase.db.from('groups').select('*').eq('id', id).single(),
     );
+    // Leadership is derived from members.group_position (single source of truth).
     const members = unwrap(
       await this.supabase.db
         .from('members')
-        .select('id,full_name,role,status')
+        .select('id,full_name,group_position,status')
         .eq('group_id', id)
         .order('full_name'),
     );

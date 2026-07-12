@@ -63,7 +63,7 @@ class EventsService {
     const attendance = unwrap(
       await this.supabase.db
         .from('event_attendance')
-        .select('*, member:members(id,full_name,role)')
+        .select('*, member:members(id,full_name,church_role,group_position)')
         .eq('event_id', id),
     );
     return { ...(event as object), attendance };

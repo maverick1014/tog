@@ -513,10 +513,8 @@
             <div class="field"><label>小组名称</label><input id="gName" placeholder="例如：恩典小组"></div>
             <div class="field"><label>简介</label><input id="gDesc" placeholder="小组简介 / 聚会时间"></div>
             <div class="section-title" style="margin-top:8px;">带领团队</div>
-            <div class="field"><label>小组长</label><select id="gLeader"></select></div>
-            <div class="field"><label>副组长</label><select id="gAssistant"></select></div>
-            <div class="field"><label>实习组长</label><select id="gIntern"></select></div>
-            <div class="note" style="margin:4px 0 14px;">💡 带领团队须从<strong>本组成员</strong>中选择。若组内没有该成员，请先在右侧添加。</div>
+            <div id="leadSummary"></div>
+            <div class="note" style="margin:10px 0 14px;">💡 身份在右侧「组员分配」逐人设定。<strong>小组长 / 副组长 / 实习组长每组各一人</strong>，且须先晋升为<strong>核心成员</strong>方可担任。</div>
             <div class="flex gap8">
               <button class="btn" id="gSave">保存设定</button>
               <button class="btn ghost" id="gDelete">删除小组</button>
@@ -750,46 +748,88 @@
     document.getElementById("giveSpark").innerHTML = svg;
   })();
 
-  // ---------- Members table ----------
-  var members = [
-    ["陈约翰", "牧师", "—", "012-100 0001", "在册", "2018-01-05"],
-    ["林玛丽", "小组长", "恩典小组", "012-100 0002", "在册", "2019-03-10"],
-    ["黄彼得", "副组长", "恩典小组", "012-100 0003", "在册", "2020-06-01"],
-    ["吴恩慈", "实习组长", "青年小组", "012-100 0004", "在册", "2021-02-14"],
-    ["王但以理", "核心成员", "青年小组", "012-100 0005", "在册", "2021-09-20"],
-    ["陈路得", "普通成员", "恩典小组", "012-100 0006", "在册", "2022-11-11"],
-    ["张恩典", "普通成员", "迦南小组", "012-100 0008", "在册", "2023-03-02"],
-    ["刘信实", "核心成员", "迦南小组", "012-100 0009", "在册", "2022-07-18"],
-    ["李撒母耳", "新成员", "青年小组", "012-100 0007", "在册", "2024-05-01"],
-    ["郑喜乐", "新成员", "迦南小组", "012-100 0010", "慕道", "2025-01-12"]
+  // ---------- People:身份由小组分配推导 ----------
+  // 牧师是教会级身份，挂在成员身上；其余六个身份（小组长/副组长/实习组长/
+  // 核心成员/普通成员/新成员）都在小组页里逐人分配。成员目录只做「显示」。
+  var churchRoles = { "陈约翰": "牧师" };
+  var LEAD = ["小组长", "副组长", "实习组长"];
+  var CLASSES = ["小组长", "副组长", "实习组长", "核心成员", "普通成员", "新成员"];
+  function isLead(c) { return LEAD.indexOf(c) >= 0; }
+
+  var groups = [
+    { id: "g1", name: "恩典小组", desc: "主日细胞小组 · 周六 15:00", members: [
+      { n: "林玛丽", cls: "小组长" }, { n: "黄彼得", cls: "副组长" }, { n: "陈路得", cls: "核心成员" } ] },
+    { id: "g2", name: "青年小组", desc: "青年团契 · 周五 20:00", members: [
+      { n: "吴恩慈", cls: "实习组长" }, { n: "王但以理", cls: "核心成员" }, { n: "李撒母耳", cls: "新成员" } ] },
+    { id: "g3", name: "迦南小组", desc: "新家庭小组 · 周日 14:00", members: [
+      { n: "刘信实", cls: "小组长" }, { n: "张恩典", cls: "普通成员" }, { n: "郑喜乐", cls: "新成员" } ] }
   ];
+  function groupOf(name) {
+    for (var i = 0; i < groups.length; i++) {
+      for (var j = 0; j < groups[i].members.length; j++) {
+        if (groups[i].members[j].n === name) return groups[i];
+      }
+    }
+    return null;
+  }
+  function clsOf(name) { var g = groupOf(name); if (!g) return null; return g.members.filter(function (m) { return m.n === name; })[0].cls; }
+  function roleOf(name) { return churchRoles[name] || clsOf(name) || "—"; }
+
+  var members = [
+    ["陈约翰", "012-100 0001", "在册", "2018-01-05"],
+    ["林玛丽", "012-100 0002", "在册", "2019-03-10"],
+    ["黄彼得", "012-100 0003", "在册", "2020-06-01"],
+    ["吴恩慈", "012-100 0004", "在册", "2021-02-14"],
+    ["王但以理", "012-100 0005", "在册", "2021-09-20"],
+    ["陈路得", "012-100 0006", "在册", "2022-11-11"],
+    ["张恩典", "012-100 0008", "在册", "2023-03-02"],
+    ["刘信实", "012-100 0009", "在册", "2022-07-18"],
+    ["李撒母耳", "012-100 0007", "在册", "2024-05-01"],
+    ["郑喜乐", "012-100 0010", "慕道", "2025-01-12"]
+  ];
+  var allMemberNames = members.map(function (m) { return m[0]; });
+
   function roleBadge(r) {
-    var leaders = { "牧师": 1, "小组长": 1, "副组长": 1, "实习组长": 1 };
-    var cls = leaders[r] ? "b-brand" : "b-gray";
-    return '<span class="badge ' + cls + '"><i class="role-dot" style="background:' + (roleColors[r] || "#999") + '"></i> ' + r + '</span>';
+    var brand = { "牧师": 1, "小组长": 1, "副组长": 1, "实习组长": 1 };
+    var cls = brand[r] ? "b-brand" : (r === "核心成员" ? "b-accent" : "b-gray");
+    return '<span class="badge ' + cls + '"><i class="role-dot" style="background:' + (roleColors[r] || "#b0a9a6") + '"></i> ' + r + '</span>';
   }
   function statusBadge(s) {
     return s === "在册" ? '<span class="badge b-good">在册</span>' :
       s === "慕道" ? '<span class="badge b-warn">慕道</span>' : '<span class="badge b-gray">' + s + '</span>';
   }
-  function renderMembers(filter) {
-    var body = document.querySelector("#memberTable tbody");
-    body.innerHTML = members.filter(function (m) { return !filter || filter === "all" || m[1] === filter; })
-      .map(function (m) {
-        return '<tr><td><div class="person"><div class="avatar">' + m[0][0] + '</div><strong>' + m[0] + '</strong></div></td>' +
-          '<td>' + roleBadge(m[1]) + '</td><td class="muted">' + m[2] + '</td><td class="muted tnum">' + m[3] + '</td>' +
-          '<td>' + statusBadge(m[4]) + '</td><td class="muted tnum">' + m[5] + '</td>' +
-          '<td style="text-align:right"><button class="btn ghost sm">档案</button></td></tr>';
-      }).join("");
+
+  var activeRoleFilter = "all";
+  var FILTER_ORDER = ["牧师", "小组长", "副组长", "实习组长", "核心成员", "普通成员", "新成员"];
+  function renderRoleFilters() {
+    var counts = {}; FILTER_ORDER.forEach(function (r) { counts[r] = 0; });
+    members.forEach(function (m) { var r = roleOf(m[0]); if (counts[r] != null) counts[r]++; });
+    var chips = '<button class="chip' + (activeRoleFilter === "all" ? " on" : "") + '" data-role="all">全部 ' + members.length + '</button>';
+    chips += FILTER_ORDER.map(function (r) {
+      return '<button class="chip' + (activeRoleFilter === r ? " on" : "") + '" data-role="' + r + '">' + r + " " + counts[r] + '</button>';
+    }).join("");
+    document.getElementById("roleFilters").innerHTML = chips;
   }
-  renderMembers("all");
-  document.querySelectorAll("#roleFilters .chip").forEach(function (c) {
-    c.addEventListener("click", function () {
-      document.querySelectorAll("#roleFilters .chip").forEach(function (x) { x.classList.remove("on"); });
-      c.classList.add("on");
-      renderMembers(c.getAttribute("data-role"));
-    });
+  function renderMembers() {
+    var body = document.querySelector("#memberTable tbody");
+    body.innerHTML = members.filter(function (m) {
+      return activeRoleFilter === "all" || roleOf(m[0]) === activeRoleFilter;
+    }).map(function (m) {
+      var g = groupOf(m[0]);
+      var gp = churchRoles[m[0]] ? "（教会级）" : (g ? g.name : "—");
+      return '<tr><td><div class="person"><div class="avatar">' + m[0][0] + '</div><strong>' + m[0] + '</strong></div></td>' +
+        '<td>' + roleBadge(roleOf(m[0])) + '</td><td class="muted">' + gp + '</td><td class="muted tnum">' + m[1] + '</td>' +
+        '<td>' + statusBadge(m[2]) + '</td><td class="muted tnum">' + m[3] + '</td>' +
+        '<td style="text-align:right"><button class="btn ghost sm">档案</button></td></tr>';
+    }).join("");
+  }
+  function renderPeople() { renderRoleFilters(); renderMembers(); }
+  document.getElementById("roleFilters").addEventListener("click", function (e) {
+    var c = e.target.closest("[data-role]"); if (!c) return;
+    activeRoleFilter = c.getAttribute("data-role");
+    renderPeople();
   });
+  renderPeople();
 
   // ---------- Attendance list ----------
   var attMembers = [["陈约翰", "present"], ["林玛丽", "present"], ["黄彼得", "present"], ["吴恩慈", "excused"], ["王但以理", "present"], ["陈路得", "absent"], ["张恩典", "present"], ["李撒母耳", "present"]];
@@ -841,77 +881,73 @@
   }).join("");
 
   // ---------- Groups (小组管理) ----------
-  var allMemberNames = members.map(function (m) { return m[0]; });
-  var groups = [
-    { id: "g1", name: "恩典小组", desc: "主日细胞小组 · 周六 15:00", leader: "林玛丽", assistant: "黄彼得", intern: "", members: ["林玛丽", "黄彼得", "陈路得"] },
-    { id: "g2", name: "青年小组", desc: "青年团契 · 周五 20:00", leader: "", assistant: "", intern: "吴恩慈", members: ["吴恩慈", "王但以理", "李撒母耳"] },
-    { id: "g3", name: "迦南小组", desc: "新家庭小组 · 周日 14:00", leader: "刘信实", assistant: "", intern: "", members: ["刘信实", "张恩典", "郑喜乐"] }
-  ];
   var gid = "g1", gseq = 3;
   function curGroup() { return groups.filter(function (g) { return g.id === gid; })[0]; }
 
-  function opts(names, sel, ph) {
-    return '<option value="">' + ph + '</option>' + names.map(function (n) {
-      return '<option' + (n === sel ? ' selected' : '') + '>' + n + '</option>';
-    }).join("");
-  }
-  function memRoleTag(g, n) {
-    if (n === g.leader) return '<span class="badge b-brand"><i class="role-dot" style="background:#9e1c1f"></i> 小组长</span>';
-    if (n === g.assistant) return '<span class="badge b-brand"><i class="role-dot" style="background:#b23530"></i> 副组长</span>';
-    if (n === g.intern) return '<span class="badge b-accent"><i class="role-dot" style="background:#d08375"></i> 实习组长</span>';
-    return '<span class="badge b-gray">组员</span>';
-  }
   function renderGroupChips() {
     document.getElementById("groupChips").innerHTML = groups.map(function (g) {
       return '<button class="chip' + (g.id === gid ? ' on' : '') + '" data-gid="' + g.id + '">' + g.name + ' · ' + g.members.length + '</button>';
+    }).join("");
+  }
+  function nameByCls(g, c) { var m = g.members.filter(function (x) { return x.cls === c; })[0]; return m ? m.n : null; }
+  function renderLeadSummary(g) {
+    var rows = [["小组长", "#9e1c1f"], ["副组长", "#b23530"], ["实习组长", "#d08375"]];
+    document.getElementById("leadSummary").innerHTML = rows.map(function (r) {
+      var nm = nameByCls(g, r[0]);
+      return '<div class="between" style="padding:8px 0;border-bottom:1px solid var(--border)">' +
+        '<span class="badge b-brand"><i class="role-dot" style="background:' + r[1] + '"></i> ' + r[0] + '</span>' +
+        (nm ? '<strong>' + nm + '</strong>' : '<span class="muted">未指定</span>') + '</div>';
+    }).join("");
+  }
+  function clsSelect(current) {
+    var canLead = current === "核心成员" || isLead(current);
+    return CLASSES.map(function (c) {
+      var disabled = isLead(c) && !canLead && c !== current;
+      return '<option' + (c === current ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + c + '</option>';
     }).join("");
   }
   function renderGroupDetail() {
     var g = curGroup(); if (!g) return;
     document.getElementById("gName").value = g.name;
     document.getElementById("gDesc").value = g.desc;
-    document.getElementById("gLeader").innerHTML = opts(g.members, g.leader, "— 未指定 —");
-    document.getElementById("gAssistant").innerHTML = opts(g.members, g.assistant, "— 未指定 —");
-    document.getElementById("gIntern").innerHTML = opts(g.members, g.intern, "— 未指定 —");
     document.getElementById("gCount").textContent = "（" + g.members.length + " 人）";
-    var avail = allMemberNames.filter(function (n) { return g.members.indexOf(n) < 0; });
-    document.getElementById("gAddSelect").innerHTML = opts(avail, "", "选择成员加入本组…");
-    // leadership first, then the rest
-    var ordered = g.members.slice().sort(function (a, b) {
-      function rank(n) { return n === g.leader ? 0 : n === g.assistant ? 1 : n === g.intern ? 2 : 3; }
-      return rank(a) - rank(b);
-    });
-    document.getElementById("gMemberBody").innerHTML = ordered.map(function (n) {
-      return '<tr><td><div class="person"><div class="avatar">' + n[0] + '</div><strong>' + n + '</strong></div></td>' +
-        '<td>' + memRoleTag(g, n) + '</td>' +
-        '<td style="text-align:right"><button class="btn ghost sm" data-remove="' + n + '">移除</button></td></tr>';
+    renderLeadSummary(g);
+    var avail = allMemberNames.filter(function (n) { return !churchRoles[n] && !groupOf(n); });
+    document.getElementById("gAddSelect").innerHTML =
+      '<option value="">选择成员加入本组…</option>' + avail.map(function (n) { return '<option>' + n + '</option>'; }).join("");
+    var ordered = g.members.slice().sort(function (a, b) { return CLASSES.indexOf(a.cls) - CLASSES.indexOf(b.cls); });
+    document.getElementById("gMemberBody").innerHTML = ordered.map(function (m) {
+      return '<tr><td><div class="person"><div class="avatar">' + m.n[0] + '</div><strong>' + m.n + '</strong></div></td>' +
+        '<td><select data-cls="' + m.n + '" style="min-width:118px">' + clsSelect(m.cls) + '</select></td>' +
+        '<td style="text-align:right"><button class="btn ghost sm" data-remove="' + m.n + '">移除</button></td></tr>';
     }).join("");
   }
-  function renderGroups() { renderGroupChips(); renderGroupDetail(); }
+  function renderGroups() { renderGroupChips(); renderGroupDetail(); renderPeople(); }
 
   document.getElementById("groupChips").addEventListener("click", function (e) {
     var b = e.target.closest("[data-gid]"); if (!b) return;
     gid = b.getAttribute("data-gid"); renderGroups();
   });
-  function setRole(field, val) {
-    var g = curGroup();
-    // a person holds at most one leadership role in the group
-    ["leader", "assistant", "intern"].forEach(function (r) { if (val && g[r] === val) g[r] = ""; });
-    g[field] = val; renderGroupDetail();
-  }
-  document.getElementById("gLeader").addEventListener("change", function () { setRole("leader", this.value); });
-  document.getElementById("gAssistant").addEventListener("change", function () { setRole("assistant", this.value); });
-  document.getElementById("gIntern").addEventListener("change", function () { setRole("intern", this.value); });
-  document.getElementById("gAddBtn").addEventListener("click", function () {
-    var sel = document.getElementById("gAddSelect"); var n = sel.value; if (!n) return;
-    var g = curGroup(); if (g.members.indexOf(n) < 0) g.members.push(n);
-    renderGroups();
+  document.getElementById("gMemberBody").addEventListener("change", function (e) {
+    var sel = e.target.closest("select[data-cls]"); if (!sel) return;
+    var name = sel.getAttribute("data-cls"), val = sel.value, g = curGroup();
+    var me = g.members.filter(function (x) { return x.n === name; })[0];
+    if (isLead(val)) {
+      // one holder per leadership position — demote the previous holder to 核心成员
+      g.members.forEach(function (x) { if (x !== me && x.cls === val) x.cls = "核心成员"; });
+    }
+    me.cls = val; renderGroups();
   });
   document.getElementById("gMemberBody").addEventListener("click", function (e) {
     var b = e.target.closest("[data-remove]"); if (!b) return;
-    var n = b.getAttribute("data-remove"); var g = curGroup();
-    g.members = g.members.filter(function (x) { return x !== n; });
-    ["leader", "assistant", "intern"].forEach(function (r) { if (g[r] === n) g[r] = ""; });
+    var n = b.getAttribute("data-remove"), g = curGroup();
+    g.members = g.members.filter(function (x) { return x.n !== n; });
+    renderGroups();
+  });
+  document.getElementById("gAddBtn").addEventListener("click", function () {
+    var n = document.getElementById("gAddSelect").value; if (!n) return;
+    var g = curGroup();
+    if (!g.members.filter(function (x) { return x.n === n; })[0]) g.members.push({ n: n, cls: "新成员" });
     renderGroups();
   });
   document.getElementById("gSave").addEventListener("click", function () {
@@ -920,7 +956,7 @@
     g.desc = document.getElementById("gDesc").value;
     var flag = document.getElementById("savedFlag");
     flag.style.display = "inline-flex";
-    renderGroupChips();
+    renderGroups();
     setTimeout(function () { flag.style.display = "none"; }, 1600);
   });
   document.getElementById("gDelete").addEventListener("click", function () {
@@ -930,7 +966,7 @@
   });
   document.getElementById("addGroupBtn").addEventListener("click", function () {
     gseq++; var id = "g" + gseq;
-    groups.push({ id: id, name: "新小组 " + gseq, desc: "", leader: "", assistant: "", intern: "", members: [] });
+    groups.push({ id: id, name: "新小组 " + gseq, desc: "", members: [] });
     gid = id; renderGroups();
     document.getElementById("gName").focus();
   });
