@@ -1,0 +1,14 @@
+# Minimal Supabase CLI config. Set project_id to your project ref
+# (or run `supabase link --project-ref <ref>`).
+project_id = "tog"
+
+[db]
+port = 54322
+major_version = 15
+
+[api]
+port = 54321
+schemas = ["public"]
+
+[studio]
+port = 54323

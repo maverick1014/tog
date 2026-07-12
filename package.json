@@ -1,0 +1,26 @@
+{
+  "name": "tog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Church Management System - Next.js + NestJS + Supabase",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev:web": "npm run dev -w @tog/web",
+    "dev:api": "npm run start:dev -w @tog/api",
+    "build": "npm run build -w @tog/shared && npm run build -w @tog/api && npm run build -w @tog/web",
+    "build:web": "npm run build -w @tog/web",
+    "build:api": "npm run build -w @tog/api",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
