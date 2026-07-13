@@ -1,29 +1,20 @@
 'use client';
 
-import { ReactNode } from 'react';
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from 'react';
+import { initialOf } from '@/lib/labels';
 
-export function PageHeader({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="page-header">
-      <div>
-        <h1 className="page-title">{title}</h1>
-        {subtitle && <p className="page-subtitle">{subtitle}</p>}
-      </div>
-      {action}
-    </div>
-  );
-}
+/* -------------------------------------------------------------------------
+ * State helpers
+ * ---------------------------------------------------------------------- */
 
 export function Loading() {
-  return <div className="empty">Loading…</div>;
+  return <div className="loading">加载中…</div>;
 }
 
 export function ErrorBanner({ message }: { message: string | null }) {
@@ -35,59 +26,169 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
 
-const STATUS_TONE: Record<string, string> = {
-  active: 'green',
-  present: 'green',
-  approved: 'green',
-  completed: 'green',
-  in_progress: 'amber',
-  pending: 'amber',
-  excused: 'amber',
-  paused: 'amber',
-  inactive: 'gray',
-  absent: 'red',
-  dropped: 'red',
-};
+/* -------------------------------------------------------------------------
+ * Avatar, badges
+ * ---------------------------------------------------------------------- */
 
-export function StatusBadge({ status }: { status: string }) {
-  const tone = STATUS_TONE[status] ?? 'gray';
-  return <span className={`badge ${tone}`}>{status.replace(/_/g, ' ')}</span>;
+export function Avatar({
+  name,
+  size = 'sm',
+}: {
+  name: string | null | undefined;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  return <div className={`avatar ${size === 'sm' ? '' : size}`}>{initialOf(name)}</div>;
 }
+
+export function Badge({
+  tone,
+  dot,
+  children,
+}: {
+  tone: string;
+  dot?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className={`badge ${tone}`}>
+      {dot && <i className="dot" style={{ background: dot }} />}
+      {children}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Card
+ * ---------------------------------------------------------------------- */
+
+export function Card({
+  title,
+  right,
+  children,
+  style,
+}: {
+  title?: ReactNode;
+  right?: ReactNode;
+  children: ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div className="card" style={style}>
+      {(title || right) && (
+        <div className="card-head">
+          {typeof title === 'string' ? <h3>{title}</h3> : title}
+          {right}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Progress bar
+ * ---------------------------------------------------------------------- */
+
+export function ProgressBar({
+  percent,
+  label,
+  thin,
+}: {
+  percent: number;
+  label?: string;
+  thin?: boolean;
+}) {
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  return (
+    <div className="progress-row">
+      <div className={`bar ${thin ? 'thin' : ''}`}>
+        <span style={{ width: `${p}%` }} />
+      </div>
+      <span className="pct">{label ?? `${p}%`}</span>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Toggle switch
+ * ---------------------------------------------------------------------- */
+
+export function Switch({
+  on,
+  onToggle,
+}: {
+  on: boolean;
+  onToggle?: () => void;
+}) {
+  return (
+    <div className={`switch ${on ? 'on' : ''}`} onClick={onToggle} role="switch" aria-checked={on}>
+      <div className="knob" />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Modal
+ * ---------------------------------------------------------------------- */
 
 export function Modal({
   title,
   onClose,
   children,
+  size,
 }: {
-  title: string;
+  title?: string;
   onClose: () => void;
   children: ReactNode;
+  size?: 'wide' | 'narrow';
 }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="flex-between" style={{ marginBottom: 16 }}>
-          <h3 style={{ margin: 0 }}>{title}</h3>
-          <button className="btn ghost sm" onClick={onClose}>
-            ✕
-          </button>
-        </div>
+      <div className={`modal ${size ?? ''}`} onClick={(e) => e.stopPropagation()}>
+        {title && <h3>{title}</h3>}
         {children}
       </div>
     </div>
   );
 }
 
-export function ProgressBar({ percent }: { percent: number }) {
-  const p = Math.max(0, Math.min(100, percent));
+export function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex gap-8" style={{ alignItems: 'center' }}>
-      <div className="progress">
-        <span style={{ width: `${p}%` }} />
-      </div>
-      <span className="muted" style={{ fontSize: 12 }}>
-        {p}%
-      </span>
+    <div className="field">
+      <label className="field-label">{label}</label>
+      {children}
     </div>
   );
+}
+
+/* -------------------------------------------------------------------------
+ * Toast
+ * ---------------------------------------------------------------------- */
+
+const ToastContext = createContext<(msg: string) => void>(() => {});
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const show = useCallback((m: string) => {
+    setMsg(m);
+    window.setTimeout(() => setMsg(null), 2200);
+  }, []);
+
+  return (
+    <ToastContext.Provider value={show}>
+      {children}
+      {msg && <div className="toast">{msg}</div>}
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  return useContext(ToastContext);
 }

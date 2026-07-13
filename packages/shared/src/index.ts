@@ -275,6 +275,50 @@ export interface DiscipleshipPair {
   created_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// App users / login accounts (用户管理)
+// ---------------------------------------------------------------------------
+
+/**
+ * Permission role for a login account — what the person may DO in the app.
+ * Distinct from their church/group identity (which is derived on the member).
+ */
+export enum AccountRole {
+  SuperAdmin = 'super_admin', // 超级管理员
+  Admin = 'admin', // 管理员
+  Coworker = 'coworker', // 同工
+  ReadOnly = 'readonly', // 只读
+}
+
+export const ACCOUNT_ROLE_LABELS: Record<AccountRole, string> = {
+  [AccountRole.SuperAdmin]: '超级管理员',
+  [AccountRole.Admin]: '管理员',
+  [AccountRole.Coworker]: '同工',
+  [AccountRole.ReadOnly]: '只读',
+};
+
+export enum AccountStatus {
+  Active = 'active',
+  Disabled = 'disabled',
+}
+
+/** A login account, tied one-to-one to a member profile. */
+export interface AppUser {
+  id: string;
+  member_id: string;
+  email: string;
+  account_role: AccountRole;
+  status: AccountStatus;
+  two_factor: boolean;
+  language: string;
+  notify_discipleship: boolean;
+  notify_donation: boolean;
+  notify_weekly: boolean;
+  last_sign_in_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** One daily form entry filled in by the mentor for a pair. */
 export interface DiscipleshipProgress {
   id: string;

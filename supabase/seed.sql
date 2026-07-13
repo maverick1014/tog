@@ -65,3 +65,9 @@ insert into discipleship_progress (pair_id, day_number, completed, notes) values
   ('f0000000-0000-0000-0000-000000000001', 1, true, 'Day 1 devotion done'),
   ('f0000000-0000-0000-0000-000000000001', 2, true, 'Day 2 devotion done'),
   ('f0000000-0000-0000-0000-000000000001', 3, false, 'Missed');
+
+-- Login accounts (用户管理). Each is tied to a member profile.
+insert into app_users (member_id, email, account_role, status, two_factor, last_sign_in_at) values
+  ('a0000000-0000-0000-0000-000000000001', 'john@grace.org',  'super_admin', 'active',   true,  now() - interval '2 hours'),
+  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day'),
+  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days');

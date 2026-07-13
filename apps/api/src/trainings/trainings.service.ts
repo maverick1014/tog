@@ -24,7 +24,7 @@ export class TrainingsService {
   }
 
   async findOne(id: string) {
-    const training = unwrap(
+    const training = unwrap<Record<string, unknown>>(
       await this.supabase.db
         .from('trainings')
         .select('*, trainer:members(id,full_name)')
@@ -45,7 +45,7 @@ export class TrainingsService {
         .eq('training_id', id)
         .order('enrolled_at'),
     );
-    return { ...(training as object), sessions, enrollments };
+    return { ...training, sessions, enrollments };
   }
 
   create(dto: CreateTrainingDto) {
