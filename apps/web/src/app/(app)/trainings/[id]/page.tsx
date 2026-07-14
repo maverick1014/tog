@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
 import { exportMatrix } from '@/lib/export';
 import { MemberRow, NamelistResponse, TrainingDetail } from '@/lib/types';
 import {
@@ -23,6 +23,7 @@ export default function TrainingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
 
   const detail = useFetch<TrainingDetail>(`/trainings/${id}`);
   const namelist = useFetch<NamelistResponse>(`/trainings/${id}/namelist`);
@@ -67,7 +68,13 @@ export default function TrainingDetailPage() {
   };
 
   const del = async () => {
-    if (!confirm(`删除「${t.name}」？`)) return;
+    const ok = await confirm({
+      title: '删除课程',
+      message: `删除「${t.name}」？报名与名单记录将一并移除。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     await api.delete(`/trainings/${id}`);
     router.push('/trainings');
   };

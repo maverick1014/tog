@@ -2,6 +2,7 @@ import { getDb, HttpError, json, unwrap } from '@/lib/server/db';
 import {
   clearCookie,
   getSession,
+  hashPassword,
   sessionCookie,
   signSession,
   verifyPassword,
@@ -469,16 +470,47 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
       if (method === 'GET')
         return json(unwrap(await db.from('app_users').select(ACCOUNT_SELECT).order('created_at', { ascending: true })));
       if (method === 'POST')
-        return json(unwrap(await db.from('app_users').insert(await body()).select(ACCOUNT_SELECT).single()));
+        return json(
+          unwrap(
+            await db
+              .from('app_users')
+              .insert(await accountWrite(await body()))
+              .select(ACCOUNT_SELECT)
+              .single(),
+          ),
+        );
     } else if (!r2) {
       if (method === 'GET')
         return json(unwrap(await db.from('app_users').select(ACCOUNT_SELECT).eq('id', r1).single()));
       if (method === 'PATCH')
-        return json(unwrap(await db.from('app_users').update(await body()).eq('id', r1).select(ACCOUNT_SELECT).single()));
+        return json(
+          unwrap(
+            await db
+              .from('app_users')
+              .update(await accountWrite(await body()))
+              .eq('id', r1)
+              .select(ACCOUNT_SELECT)
+              .single(),
+          ),
+        );
       if (method === 'DELETE') {
         unwrap(await db.from('app_users').delete().eq('id', r1).select().single());
         return json({ id: r1 });
       }
+    } else if (r2 === 'password' && method === 'POST') {
+      // Super-admin resets an account's password (gate already restricts
+      // non-GET /accounts to super_admin). No current-password needed.
+      const pw = String((await body()).password ?? '');
+      if (pw.length < 8) throw new HttpError(400, '密码至少 8 位');
+      unwrap(
+        await db
+          .from('app_users')
+          .update({ password_hash: await hashPassword(pw) })
+          .eq('id', r1)
+          .select('id')
+          .single(),
+      );
+      return json({ id: r1, ok: true });
     }
   }
 
@@ -644,7 +676,42 @@ async function authRoute(
     if (!s) throw new HttpError(401, '未登录');
     return json({ id: s.sub, role: s.role, member: s.member, name: s.name });
   }
+  // Self-service password change — any logged-in user, verifies the old password.
+  if (p[1] === 'password' && method === 'POST') {
+    const s = await getSession(req);
+    if (!s) throw new HttpError(401, '未登录');
+    const dto = (await req.json().catch(() => ({}))) as { current?: string; password?: string };
+    const next = String(dto.password ?? '');
+    if (next.length < 8) throw new HttpError(400, '新密码至少 8 位');
+    const cur = unwrap(
+      await db.from('app_users').select('password_hash').eq('id', s.sub).single(),
+    ) as { password_hash: string | null };
+    if (!(await verifyPassword(dto.current ?? '', cur.password_hash)))
+      throw new HttpError(401, '当前密码不正确');
+    unwrap(
+      await db
+        .from('app_users')
+        .update({ password_hash: await hashPassword(next) })
+        .eq('id', s.sub)
+        .select('id')
+        .single(),
+    );
+    return json({ ok: true });
+  }
   throw new HttpError(404, `No auth route for ${method} /api/${p.join('/')}`);
+}
+
+/**
+ * Normalize an account create/update payload: a plaintext `password` field is
+ * hashed into `password_hash` and stripped, so passwords are never stored raw.
+ */
+async function accountWrite(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const { password, ...rest } = body;
+  if (typeof password === 'string' && password.length > 0) {
+    if (password.length < 8) throw new HttpError(400, '密码至少 8 位');
+    rest.password_hash = await hashPassword(password);
+  }
+  return rest;
 }
 
 // --- HTTP method entry points ----------------------------------------------

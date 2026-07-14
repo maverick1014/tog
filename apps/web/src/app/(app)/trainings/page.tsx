@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Loading, useToast } from '@/components/ui';
+import { ErrorBanner, Loading, useConfirm, useToast } from '@/components/ui';
 import { TrainingModal } from '@/components/TrainingModal';
 import { MemberRow, TrainingRow } from '@/lib/types';
 import { categoryBadgeClass, formatDate } from '@/lib/labels';
@@ -13,6 +13,7 @@ import { categoryBadgeClass, formatDate } from '@/lib/labels';
 export default function TrainingsPage() {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const trainings = useFetch<TrainingRow[]>('/trainings');
   const members = useFetch<MemberRow[]>('/members');
   const [addOpen, setAddOpen] = useState(false);
@@ -42,7 +43,13 @@ export default function TrainingsPage() {
   }, [list]);
 
   const del = async (t: TrainingRow) => {
-    if (!confirm(`删除「${t.name}」？报名与名单记录将一并移除。`)) return;
+    const ok = await confirm({
+      title: '删除课程',
+      message: `删除「${t.name}」？报名与名单记录将一并移除。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     await api.delete(`/trainings/${t.id}`);
     trainings.reload();
     toast('已删除课程');

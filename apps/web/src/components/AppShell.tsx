@@ -3,7 +3,7 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ToastProvider } from './ui';
+import { ConfirmProvider, ToastProvider, useConfirm } from './ui';
 import { GlobeMark } from './GlobeMark';
 import { initialOf } from '@/lib/labels';
 import { ACCOUNT_ROLE_LABELS, AccountRole } from '@tog/shared';
@@ -84,11 +84,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/login';
-  };
-
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
 
@@ -101,6 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
+    <ConfirmProvider>
     <ToastProvider>
       <ChromeContext.Provider value={setChrome}>
         <div className={`app-shell ${navOpen ? 'nav-open' : ''}`}>
@@ -133,13 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
 
             <div className="grow" />
-            <div className="nav-user" onClick={logout} title="退出登录" style={{ cursor: 'pointer' }}>
-              <div className="avatar">{initialOf(me.name)}</div>
-              <div className="who">
-                {me.name}
-                <small>{ACCOUNT_ROLE_LABELS[me.role as AccountRole] ?? me.role} · 退出登录</small>
-              </div>
-            </div>
+            <NavUser me={me} />
           </aside>
 
           <div className="scrim" onClick={() => setNavOpen(false)} />
@@ -171,5 +161,32 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </ChromeContext.Provider>
     </ToastProvider>
+    </ConfirmProvider>
+  );
+}
+
+function NavUser({ me }: { me: Me }) {
+  const confirm = useConfirm();
+
+  const logout = async () => {
+    const ok = await confirm({
+      title: '退出登录',
+      message: '确定要退出当前账户吗？',
+      confirmText: '退出登录',
+      danger: true,
+    });
+    if (!ok) return;
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  };
+
+  return (
+    <div className="nav-user" onClick={logout} title="退出登录" style={{ cursor: 'pointer' }}>
+      <div className="avatar">{initialOf(me.name)}</div>
+      <div className="who">
+        {me.name}
+        <small>{ACCOUNT_ROLE_LABELS[me.role as AccountRole] ?? me.role} · 退出登录</small>
+      </div>
+    </div>
   );
 }

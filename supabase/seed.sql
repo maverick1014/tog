@@ -101,10 +101,14 @@ insert into discipleship_progress (pair_id, day_number, completed)
 
 -- Login accounts (用户管理). Each is tied to a member profile.
 -- Demo password for all three accounts: grace2026 (PBKDF2-HMAC-SHA256).
+-- Only the bootstrap super-admin ships with a password (grace2026) so the app
+-- and the deploy smoke-test always have a way in — change it after first login.
+-- Every other account starts WITHOUT a password (password_hash = null) and
+-- cannot log in until a super-admin sets one via 用户管理 → 重设密码.
 insert into app_users (member_id, email, account_role, status, two_factor, last_sign_in_at, password_hash) values
   ('a0000000-0000-0000-0000-000000000001', 'john@grace.org',  'super_admin', 'active',   true,  now() - interval '2 hours',  'pbkdf2$100000$fG6H3PSCMih3zJdJcGaL0g$s2eis5B-IpbzVEADzFyfWjDDHRtMzVZor1orVQ4vYbs'),
-  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day',   'pbkdf2$100000$pCu75vqutmWDkMfaHhOFww$NfoZPcxBxvSRyo4wBSqwvncwrd0yxeaMT9zV8Xj6bBQ'),
-  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days', 'pbkdf2$100000$7zWPtTFjwUNLJ7D3dY8abA$jtHHaaXJltiyi08cDeS6eNaE49gSc6P7DjzWJDj1TuI');
+  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day',   null),
+  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days', null);
 
 -- Life-group weekly meetings + attendance.
 insert into group_meetings (id, group_id, meeting_date) values

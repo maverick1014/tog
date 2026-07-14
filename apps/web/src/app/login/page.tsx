@@ -8,6 +8,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -82,14 +83,25 @@ export default function LoginPage() {
         </div>
         <div className="field">
           <label className="field-label">密码</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="current-password"
-            required
-          />
+          <div className="pw-field">
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+            />
+            <button
+              type="button"
+              className="pw-toggle"
+              onClick={() => setShowPw((s) => !s)}
+              aria-label={showPw ? '隐藏密码' : '显示密码'}
+              title={showPw ? '隐藏密码' : '显示密码'}
+            >
+              {showPw ? '🙈' : '👁'}
+            </button>
+          </div>
         </div>
         <button className="btn block" type="submit" disabled={busy} style={{ marginTop: 6 }}>
           {busy ? '登录中…' : '登录'}

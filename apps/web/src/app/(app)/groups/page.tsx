@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
 import { exportMatrix } from '@/lib/export';
 import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
 import { ATTENDANCE_LABELS, formatDate, positionZh } from '@/lib/labels';
@@ -120,6 +120,7 @@ function GroupPanel({
   onDeleted: () => void;
   toast: (m: string) => void;
 }) {
+  const confirm = useConfirm();
   const [name, setName] = useState(group.name);
   const [desc, setDesc] = useState(group.description ?? '');
   const [addSel, setAddSel] = useState('');
@@ -155,7 +156,13 @@ function GroupPanel({
   };
 
   const deleteGroup = async () => {
-    if (!confirm(`删除「${group.name}」？组员将变为未分组。`)) return;
+    const ok = await confirm({
+      title: '删除小组',
+      message: `删除「${group.name}」？组员将变为未分组。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/groups/${group.id}`);
       onDeleted();
@@ -336,6 +343,7 @@ function GroupPanel({
 
 function WeeklyAttendance({ groupId }: { groupId: string }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const { data, loading, reload } = useFetch<GroupAttendanceResponse>(
     `/groups/${groupId}/attendance`,
   );
@@ -370,7 +378,13 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
   };
 
   const delWeek = async (meetingId: string) => {
-    if (!confirm('删除本周聚会及其出席记录？')) return;
+    const ok = await confirm({
+      title: '删除本周聚会',
+      message: '删除本周聚会及其出席记录？',
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     await api.delete(`/groups/meetings/${meetingId}`);
     reload();
   };

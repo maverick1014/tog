@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, RoleBadge, Switch, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, PasswordInput, RoleBadge, Switch, useConfirm, useToast } from '@/components/ui';
 import { AccountRow, MemberRow } from '@/lib/types';
 import {
   ACCOUNT_ROLE_OPTIONS,
@@ -25,14 +25,20 @@ export default function SettingsPage() {
   const members = useFetch<MemberRow[]>('/members');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [myPwOpen, setMyPwOpen] = useState(false);
 
   usePageChrome({
     title: '用户管理',
     subtitle: '登录账户 · 权限角色 · 安全与偏好',
     action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新建账户
-      </button>
+      <>
+        <button className="btn ghost" onClick={() => setMyPwOpen(true)}>
+          修改我的密码
+        </button>
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新建账户
+        </button>
+      </>
     ),
   });
 
@@ -67,8 +73,8 @@ export default function SettingsPage() {
     <>
       <ErrorBanner message={accounts.error} />
       <div className="hint mb-14">
-        💡 每个登录账户都<strong>关联一位成员档案</strong>。点右上角「＋ 新建账户」选择成员并授予权限；点任一账户可管理其权限、安全与偏好。<br />
-        <span className="faint">注：v1 暂未启用登录鉴权，此处仅维护账户与权限模型，为日后接入 Supabase Auth 预留。</span>
+        💡 每个登录账户都<strong>关联一位成员档案</strong>。点右上角「＋ 新建账户」选择成员、设定登录邮箱与初始密码并授予权限；点任一账户可管理其权限、重设密码与偏好。<br />
+        <span className="faint">登录鉴权已启用：会话由签名 Cookie 保护，密码以 PBKDF2 加盐哈希存储。超级管理员可重设任意账户密码，用户可在「修改我的密码」中自助修改。</span>
       </div>
       <div className="card mb-14">
         <div className="card-head">
@@ -145,7 +151,59 @@ export default function SettingsPage() {
           }}
         />
       )}
+
+      {myPwOpen && (
+        <ChangeMyPasswordModal
+          onClose={() => setMyPwOpen(false)}
+          onSaved={() => {
+            setMyPwOpen(false);
+            toast('密码已更新');
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function ChangeMyPasswordModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    if (next.length < 8) return setErr('新密码至少 8 位');
+    if (next !== confirmPw) return setErr('两次输入的新密码不一致');
+    setSaving(true);
+    setErr(null);
+    try {
+      await api.post('/auth/password', { current, password: next });
+      onSaved();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title="修改我的密码" onClose={onClose}>
+      {err && <ErrorBanner message={err} />}
+      <Field label="当前密码">
+        <PasswordInput value={current} onChange={setCurrent} autoComplete="current-password" />
+      </Field>
+      <Field label="新密码">
+        <PasswordInput value={next} onChange={setNext} placeholder="至少 8 位" autoComplete="new-password" />
+      </Field>
+      <Field label="确认新密码">
+        <PasswordInput value={confirmPw} onChange={setConfirmPw} autoComplete="new-password" />
+      </Field>
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onClose}>取消</button>
+        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '更新密码'}</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -171,11 +229,39 @@ function AccountDetail({
   const [nWeekly, setNWeekly] = useState(account.notify_weekly);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [pw, setPw] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const memberRole = account.member ? memberRoleZh(account.member) : '未分组';
 
+  const resetPassword = async () => {
+    if (pw.length < 8) {
+      setErr('新密码至少 8 位');
+      return;
+    }
+    setPwBusy(true);
+    setErr(null);
+    try {
+      await api.post(`/accounts/${account.id}/password`, { password: pw });
+      setPw('');
+      toast(`已为 ${account.member?.full_name ?? '该账户'} 重设密码`);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
   const del = async () => {
-    if (!confirm(`删除 ${account.member?.full_name ?? '该成员'} 的登录账户？其成员档案会保留。`)) return;
+    const ok = await confirm({
+      title: '删除登录账户',
+      message: `删除 ${account.member?.full_name ?? '该成员'} 的登录账户？其成员档案会保留。`,
+      confirmText: '删除账户',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/accounts/${account.id}`);
       onDeleted();
@@ -267,17 +353,20 @@ function AccountDetail({
 
       <div className="grid g2 mt-16">
         <div className="card">
-          <h3 style={{ marginBottom: 14 }}>安全</h3>
-          <Field label="当前密码">
-            <input type="password" defaultValue="password" placeholder="••••••••" />
-          </Field>
+          <h3 style={{ marginBottom: 4 }}>安全 · 重设登录密码</h3>
+          <div className="muted" style={{ fontSize: 11.5, marginBottom: 12 }}>
+            仅超级管理员可为其他账户直接重设密码；无需知道旧密码。
+          </div>
           <Field label="新密码">
-            <input type="password" placeholder="至少 8 位" />
+            <PasswordInput value={pw} onChange={setPw} placeholder="至少 8 位" autoComplete="new-password" />
           </Field>
-          <div className="flex-between" style={{ paddingTop: 6, borderTop: '1px solid var(--border)', marginTop: 4 }}>
+          <button className="btn ghost block" onClick={resetPassword} disabled={pwBusy || pw.length < 8}>
+            {pwBusy ? '重设中…' : '重设该账户密码'}
+          </button>
+          <div className="flex-between" style={{ paddingTop: 12, borderTop: '1px solid var(--border)', marginTop: 12 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>两步验证（2FA）</div>
-              <div className="muted" style={{ fontSize: 11.5 }}>登录时需短信验证码</div>
+              <div className="muted" style={{ fontSize: 11.5 }}>登录时需短信验证码（规划中）</div>
             </div>
             <Switch on={twoFactor} onToggle={() => setTwoFactor(!twoFactor)} />
           </div>
@@ -292,9 +381,6 @@ function AccountDetail({
               <option value="en">English</option>
               <option value="ms">Bahasa Melayu</option>
             </select>
-          </Field>
-          <Field label="操作">
-            <button className="btn ghost block">发送重置密码邮件</button>
           </Field>
         </div>
       </div>
@@ -352,12 +438,17 @@ function AddAccountModal({
   const [memberId, setMemberId] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AccountRole>(AccountRole.Coworker);
+  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const save = async () => {
     if (!memberId || !email.trim()) {
       setErr('请选择成员并填写登录邮箱');
+      return;
+    }
+    if (password.length < 8) {
+      setErr('请设定至少 8 位的初始密码');
       return;
     }
     setSaving(true);
@@ -367,6 +458,7 @@ function AddAccountModal({
         member_id: memberId,
         email: email.trim(),
         account_role: role,
+        password,
       });
       onSaved();
     } catch (e) {
@@ -404,6 +496,9 @@ function AddAccountModal({
           </select>
         </Field>
       </div>
+      <Field label="初始密码">
+        <PasswordInput value={password} onChange={setPassword} placeholder="至少 8 位，可稍后由用户自行修改" autoComplete="new-password" />
+      </Field>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
         <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '创建账户'}</button>
