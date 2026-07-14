@@ -11,6 +11,11 @@ on:
         description: Target base URL
         required: false
         default: https://tog-web.tabernacleofgrace-cn.workers.dev
+  # Temporary while stabilizing the suite in CI (validated cloud-only). Runs on
+  # pushes that touch the e2e files. Remove once the suite is green + merged.
+  push:
+    branches: [claude/design-project-impl-r6iiu8]
+    paths: ['apps/web/e2e/**', 'apps/web/playwright.config.ts', '.github/workflows/e2e.yml']
 
 permissions:
   contents: read
@@ -39,6 +44,20 @@ jobs:
       - name: Run E2E tests
         working-directory: apps/web
         run: npx playwright test
+      - name: Summarize results
+        if: ${{ !cancelled() }}
+        working-directory: apps/web
+        run: |
+          node -e '
+            const fs=require("fs");
+            let d; try{ d=JSON.parse(fs.readFileSync("e2e/.results.json","utf8")); }catch(e){ console.log("no results json:",e.message); process.exit(0); }
+            const out=[];
+            const walk=(s)=>{ for(const spec of s.specs||[]){ for(const t of spec.tests||[]){ const r=t.results?.[t.results.length-1]; const st=r?.status||"?"; if(spec.ok===false||st==="failed"||st==="timedOut"){ const err=(r?.error?.message||"").split("\n")[0].slice(0,180); out.push(`FAIL  ${spec.title}\n      ${err}`);} } } for(const c of s.suites||[]) walk(c); };
+            for(const suite of d.suites||[]) walk(suite);
+            const st=d.stats||{};
+            console.log(`\n==== E2E SUMMARY: ${st.expected||0} passed, ${st.unexpected||0} failed, ${st.flaky||0} flaky, ${st.skipped||0} skipped ====`);
+            if(out.length) console.log("\n"+out.join("\n\n"));
+          '
       - name: Upload report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
