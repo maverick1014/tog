@@ -20,7 +20,7 @@ export default function DashboardPage() {
     firstProgram ? `/discipleship/programs/${firstProgram}/overview` : null,
   );
 
-  const loading = members.loading || events.loading;
+  const loading = members.initialLoading || events.initialLoading;
   const error = members.error || events.error;
 
   const memberList = members.data ?? [];

@@ -60,7 +60,7 @@ export default function EventsPage() {
     }
   };
 
-  if (events.loading) return <Loading />;
+  if (events.initialLoading) return <Loading />;
 
   return (
     <>

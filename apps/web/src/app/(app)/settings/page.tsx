@@ -73,7 +73,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (accounts.loading) return <Loading />;
+  if (accounts.initialLoading) return <Loading />;
 
   if (selected) {
     return (
@@ -189,6 +189,18 @@ export default function SettingsPage() {
   );
 }
 
+function NotifyRow({ title, sub, on, set }: { title: string; sub: string; on: boolean; set: (v: boolean) => void }) {
+  return (
+    <div className="flex-between" style={{ padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
+        <div className="muted" style={{ fontSize: 11.5 }}>{sub}</div>
+      </div>
+      <Switch on={on} onToggle={() => set(!on)} />
+    </div>
+  );
+}
+
 function AccountDetail({
   account,
   onBack,
@@ -271,16 +283,6 @@ function AccountDetail({
       setBusy(false);
     }
   };
-
-  const NotifyRow = ({ title, sub, on, set }: { title: string; sub: string; on: boolean; set: (v: boolean) => void }) => (
-    <div className="flex-between" style={{ padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
-        <div className="muted" style={{ fontSize: 11.5 }}>{sub}</div>
-      </div>
-      <Switch on={on} onToggle={() => set(!on)} />
-    </div>
-  );
 
   return (
     <div style={{ maxWidth: 720 }}>

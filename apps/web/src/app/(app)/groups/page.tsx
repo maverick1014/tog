@@ -60,7 +60,7 @@ export default function GroupsPage() {
     detail.reload();
   };
 
-  if (groups.loading) return <Loading />;
+  if (groups.initialLoading) return <Loading />;
 
   return (
     <>
@@ -229,7 +229,7 @@ function GroupPanel({
     }
   };
 
-  const TriNode = ({ pos, style }: { pos: GroupPosition; style: React.CSSProperties }) => {
+  const renderTriNode = (pos: GroupPosition, style: React.CSSProperties) => {
     const filled = groupMembers.some((m) => m.group_position === pos);
     const roleZh = positionZh(pos);
     return (
@@ -274,9 +274,9 @@ function GroupPanel({
             <svg viewBox="0 0 300 150" preserveAspectRatio="none" width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
               <path d="M150 28 L54 122 L246 122 Z" fill="var(--brand)" fillOpacity="0.04" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="5 5" />
             </svg>
-            <TriNode pos={GroupPosition.Leader} style={{ top: 8, left: '50%', transform: 'translateX(-50%)' }} />
-            <TriNode pos={GroupPosition.AssistantLeader} style={{ bottom: 6, left: 0 }} />
-            <TriNode pos={GroupPosition.InternLeader} style={{ bottom: 6, right: 0 }} />
+            {renderTriNode(GroupPosition.Leader, { top: 8, left: '50%', transform: 'translateX(-50%)' })}
+            {renderTriNode(GroupPosition.AssistantLeader, { bottom: 6, left: 0 })}
+            {renderTriNode(GroupPosition.InternLeader, { bottom: 6, right: 0 })}
           </div>
 
           <div className="hint" style={{ margin: '12px 0 14px' }}>
@@ -371,7 +371,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
   const toast = useToast();
   const confirm = useConfirm();
   const perms = can(useMe().role);
-  const { data, loading, reload } = useFetch<GroupAttendanceResponse>(
+  const { data, initialLoading, reload } = useFetch<GroupAttendanceResponse>(
     `/groups/${groupId}/attendance`,
   );
 
@@ -440,7 +440,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
         </div>
       </div>
 
-      {loading ? (
+      {initialLoading ? (
         <Loading />
       ) : !data || data.meetings.length === 0 ? (
         <div className="empty">尚无每周聚会记录，点「＋ 添加本周」开始。</div>

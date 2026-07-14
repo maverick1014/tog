@@ -55,7 +55,7 @@ export default function MemberDetailPage() {
     }
   };
 
-  if (member.loading) return <Loading />;
+  if (member.initialLoading) return <Loading />;
   if (member.error || !member.data) return <ErrorBanner message={member.error ?? '找不到成员'} />;
 
   const m = member.data;

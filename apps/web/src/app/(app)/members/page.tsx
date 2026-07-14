@@ -23,7 +23,7 @@ export default function MembersPage() {
   const router = useRouter();
   const toast = useToast();
   const perms = can(useMe().role);
-  const { data, loading, error, reload } = useFetch<MemberRow[]>('/members');
+  const { data, initialLoading, error, reload } = useFetch<MemberRow[]>('/members');
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [addOpen, setAddOpen] = useState(false);
@@ -80,7 +80,7 @@ export default function MembersPage() {
     );
   };
 
-  if (loading) return <Loading />;
+  if (initialLoading) return <Loading />;
 
   return (
     <>

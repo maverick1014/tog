@@ -36,7 +36,7 @@ export default function TrainingDetailPage() {
 
   usePageChrome({ title: '培训详情', subtitle: '场次 · 报名审核 · 核对名单' }, [id]);
 
-  if (detail.loading) return <Loading />;
+  if (detail.initialLoading) return <Loading />;
   if (detail.error || !detail.data) return <ErrorBanner message={detail.error ?? '找不到课程'} />;
 
   const t = detail.data;

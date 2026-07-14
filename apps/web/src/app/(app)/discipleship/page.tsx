@@ -187,7 +187,7 @@ export default function DiscipleshipPage() {
     </div>
   );
 
-  if (pairs.loading || programs.loading) return <Loading />;
+  if (pairs.initialLoading || programs.initialLoading) return <Loading />;
 
   if (!programId) {
     return <div className="empty">尚未建立守望计划。请先在数据库中创建 discipleship_programs 记录。</div>;
