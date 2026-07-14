@@ -170,12 +170,12 @@ export default function MembersPage() {
           return (
             <div key={m.id} className="mtile" onClick={() => router.push(`/members/${m.id}`)}>
               <div className="mtile-row1">
-                <strong>{m.full_name}</strong>
+                <div className="flex items-center gap-8 flex-wrap" style={{ minWidth: 0 }}>
+                  <strong>{m.full_name}</strong>
+                  <span className="muted" style={{ fontSize: 12.5 }}>· {m.group?.name ?? '未分组'}</span>
+                  <RoleBadge role={role} />
+                </div>
                 <span className="mtile-cta">档案 →</span>
-              </div>
-              <div className="mtile-line">
-                <RoleBadge role={role} />
-                <span>· {m.group?.name ?? '未分组'}</span>
               </div>
               <div className="mtile-line">{m.phone ?? '—'}</div>
               <div className="mtile-line">

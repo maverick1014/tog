@@ -7,7 +7,7 @@ import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
 import { exportMatrix } from '@/lib/export';
 import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
-import { ATTENDANCE_LABELS, formatDate, positionZh } from '@/lib/labels';
+import { ATTENDANCE_LABELS, formatDate, positionZh, roleDot, roleTagStyle } from '@/lib/labels';
 import {
   AttendanceStatus,
   canPromoteToLeadership,
@@ -217,10 +217,15 @@ function GroupPanel({
 
   const TriNode = ({ pos, style }: { pos: GroupPosition; style: React.CSSProperties }) => {
     const filled = groupMembers.some((m) => m.group_position === pos);
+    const roleZh = positionZh(pos);
     return (
       <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'var(--surface)', padding: '3px 8px', borderRadius: 8, ...style }}>
-        <span className={`badge ${filled ? 'b-brand' : 'b-gray'}`} style={{ fontWeight: 700 }}>
-          {positionZh(pos)}
+        <span
+          className={`badge ${filled ? '' : 'b-gray'}`}
+          style={filled ? { ...roleTagStyle(roleZh), fontWeight: 700 } : { fontWeight: 700 }}
+        >
+          {filled && <i className="dot" style={{ background: roleDot(roleZh) }} />}
+          {roleZh}
         </span>
         <strong style={{ fontSize: 13, color: filled ? 'var(--ink)' : 'var(--faint)' }}>
           {leadOf(pos)}
@@ -350,16 +355,11 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
   const [adding, setAdding] = useState(false);
   const [date, setDate] = useState('');
 
-  const nextStatus = (cur: AttendanceStatus | null): AttendanceStatus =>
-    cur === AttendanceStatus.Present
-      ? AttendanceStatus.Excused
-      : cur === AttendanceStatus.Excused
-        ? AttendanceStatus.Absent
-        : AttendanceStatus.Present;
-
-  const cycle = async (meetingId: string, memberId: string, cur: AttendanceStatus | null) => {
+  const toggle = async (meetingId: string, memberId: string, cur: AttendanceStatus | null) => {
+    const next =
+      cur === AttendanceStatus.Present ? AttendanceStatus.Absent : AttendanceStatus.Present;
     await api.post(`/groups/meetings/${meetingId}/attendance`, {
-      records: [{ member_id: memberId, status: nextStatus(cur) }],
+      records: [{ member_id: memberId, status: next }],
     });
     reload();
   };
@@ -389,13 +389,6 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
     reload();
   };
 
-  const cellOf = (s: AttendanceStatus | null) => {
-    if (s === AttendanceStatus.Present) return { label: '出', bg: 'var(--good-soft)', fg: 'var(--good)' };
-    if (s === AttendanceStatus.Excused) return { label: '请', bg: 'var(--warn-soft)', fg: 'var(--warn)' };
-    if (s === AttendanceStatus.Absent) return { label: '缺', bg: 'var(--crit-soft)', fg: 'var(--crit)' };
-    return { label: '·', bg: 'var(--surface-2)', fg: 'var(--faint)' };
-  };
-
   const exportGrid = () => {
     if (!data) return;
     const headers = ['成员', ...data.meetings.map((m) => formatDate(m.meeting_date)), '出席次数'];
@@ -413,7 +406,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
         <div>
           <h3>每周出席</h3>
           <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
-            点击方格切换 出席 / 请假 / 缺席
+            勾选表示当周出席
           </div>
         </div>
         <div className="flex gap-8">
@@ -460,28 +453,17 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
               {data.rows.map((r) => (
                 <tr key={r.member.id}>
                   <td><strong>{r.member.full_name}</strong></td>
-                  {r.cells.map((c) => {
-                    const cell = cellOf(c.status);
-                    return (
-                      <td key={c.meeting_id} style={{ textAlign: 'center' }}>
-                        <button
-                          onClick={() => cycle(c.meeting_id, r.member.id, c.status)}
-                          style={{
-                            width: 30,
-                            height: 26,
-                            borderRadius: 7,
-                            border: 'none',
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            background: cell.bg,
-                            color: cell.fg,
-                          }}
-                        >
-                          {cell.label}
-                        </button>
-                      </td>
-                    );
-                  })}
+                  {r.cells.map((c) => (
+                    <td key={c.meeting_id} style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={c.status === AttendanceStatus.Present}
+                        onChange={() => toggle(c.meeting_id, r.member.id, c.status)}
+                        style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--brand)' }}
+                        title={c.status === AttendanceStatus.Present ? '出席' : '未出席'}
+                      />
+                    </td>
+                  ))}
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>
                     {r.cells.filter((c) => c.status === AttendanceStatus.Present).length}
                   </td>
