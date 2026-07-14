@@ -49,10 +49,13 @@ jobs:
           for f in e2e/*.spec.ts; do
             echo ""
             echo "==================== $f ===================="
-            timeout --signal=KILL 100 npx playwright test "$f" --reporter=list
+            # setsid so the whole process tree (node + browsers) is one group we
+            # can KILL, and timeout hard-caps it. Reap any orphaned browsers after.
+            setsid timeout --signal=KILL 90 npx playwright test "$f" --reporter=list
             code=$?
+            pkill -9 -f "headless_shell|chrome-linux|chromium|ms-playwright" 2>/dev/null || true
             echo "---- $f exit=$code ----"
-            if [ "$code" = "137" ] || [ "$code" = "124" ]; then echo ">>> HUNG (killed after 100s): $f"; fi
+            if [ "$code" = "137" ] || [ "$code" = "124" ]; then echo ">>> HUNG (killed after 90s): $f"; fi
             [ "$code" != "0" ] && fail=1
           done
           echo "OVERALL_FAIL=$fail"
