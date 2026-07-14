@@ -103,18 +103,32 @@ export default function DiscipleshipPage() {
     );
   };
 
-  const forestView = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+  const renderForest = (full = false) => (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        marginTop: 16,
+        ...(full ? { flex: 1, minHeight: 0 } : {}),
+      }}
+    >
       {forest.map((tree, ti) => (
         <div
           key={ti}
-          style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-2)', padding: '12px 14px' }}
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            background: 'var(--surface-2)',
+            padding: '12px 14px',
+            ...(full ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}),
+          }}
         >
           <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
             <strong className="serif" style={{ fontSize: 14, color: 'var(--ink)' }}>{tree.rootName}</strong>
             {' · '}{tree.rootRole} · 起点
           </div>
-          <div className="table-wrap">
+          <div className="table-wrap" style={full ? { flex: 1, overflow: 'auto' } : undefined}>
             <div style={{ position: 'relative', width: tree.width, height: tree.height, minWidth: '100%' }}>
               <svg width={tree.width} height={tree.height} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
                 <path d={tree.path} fill="none" stroke="var(--border)" strokeWidth={1.5} />
@@ -127,7 +141,7 @@ export default function DiscipleshipPage() {
                     position: 'absolute',
                     left: tn.left,
                     top: tn.top,
-                    width: 152,
+                    width: NODEW,
                     border: '1px solid var(--border)',
                     borderRadius: 10,
                     background: 'var(--surface)',
@@ -197,7 +211,7 @@ export default function DiscipleshipPage() {
           (forest.length === 0 ? (
             <div className="empty">目前没有进行中的配对。点右上角「＋ 新增配对」开始接棒。</div>
           ) : (
-            forestView
+            renderForest(false)
           ))}
 
         {filter === 'done' && <DiscList list={doneList} kind="done" onOpen={setPopup} />}
@@ -256,18 +270,25 @@ export default function DiscipleshipPage() {
       )}
 
       {fullscreen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'var(--paper)', overflow: 'auto', padding: '18px 22px 40px' }}>
-          <div
-            className="flex-between"
-            style={{ position: 'sticky', top: 0, background: 'var(--paper)', paddingBottom: 12, zIndex: 1 }}
-          >
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 90,
+            background: 'var(--paper)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '18px 22px 22px',
+          }}
+        >
+          <div className="flex-between" style={{ paddingBottom: 12 }}>
             <div>
               <h3 className="serif" style={{ margin: 0, fontSize: 18 }}>培育链 · 接棒图</h3>
               <div className="muted" style={{ fontSize: 12 }}>世代培育树 · 全屏查看</div>
             </div>
             <button className="icon-btn" onClick={() => setFullscreen(false)} title="退出全屏">✕</button>
           </div>
-          {forestView}
+          {renderForest(true)}
         </div>
       )}
 
@@ -308,10 +329,10 @@ interface Tree {
   path: string;
 }
 
-const NODEW = 152;
-const NODEH = 66;
-const GAPX = 56;
-const ROWH = 88;
+const NODEW = 160;
+const NODEH = 80;
+const GAPX = 96;
+const ROWH = 128;
 
 function buildForest(nodes: Node[]): Tree[] {
   const kids = new Map<string, { id: string; node: Node }[]>();

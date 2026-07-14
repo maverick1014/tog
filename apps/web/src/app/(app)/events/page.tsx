@@ -36,11 +36,6 @@ export default function EventsPage() {
   const now = new Date();
   const sorted = [...list].sort((a, b) => +new Date(b.starts_at) - +new Date(a.starts_at));
 
-  useEffect(() => {
-    if (!activeId && sorted.length) setActiveId(sorted[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events.data]);
-
   if (events.loading) return <Loading />;
 
   return (
@@ -82,17 +77,20 @@ export default function EventsPage() {
           key={activeId}
           eventId={activeId}
           members={(members.data ?? []).filter((m) => m.status === MemberStatus.Active)}
-          onSaved={() => toast('已保存点名')}
+          onClose={() => setActiveId(null)}
+          onSaved={() => {
+            toast('已保存点名');
+            setActiveId(null);
+          }}
         />
       )}
 
       {addOpen && (
         <AddEventModal
           onClose={() => setAddOpen(false)}
-          onSaved={(id) => {
+          onSaved={() => {
             setAddOpen(false);
             events.reload();
-            setActiveId(id);
             toast('已新增聚会');
           }}
         />
@@ -104,10 +102,12 @@ export default function EventsPage() {
 function AttendancePanel({
   eventId,
   members,
+  onClose,
   onSaved,
 }: {
   eventId: string;
   members: MemberRow[];
+  onClose: () => void;
   onSaved: () => void;
 }) {
   const detail = useFetch<EventDetail>(`/events/${eventId}`);
@@ -143,52 +143,62 @@ function AttendancePanel({
     }
   };
 
-  if (detail.loading) return <div className="card mt-16"><Loading /></div>;
-
   return (
-    <div className="card mt-16">
+    <Modal onClose={onClose} size="wide">
       {err && <ErrorBanner message={err} />}
-      <div className="card-head">
+      <div className="flex-between" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h3>{detail.data?.title} · 出席点名</h3>
+          <h3 className="serif" style={{ margin: 0, fontSize: 18 }}>{detail.data?.title ?? '出席点名'} · 出席点名</h3>
           <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
             逐一标记出席 / 请假 / 缺席，完成后一次保存
           </div>
         </div>
-        <button className="btn accent" onClick={save} disabled={saving}>
+        <button className="icon-btn" onClick={onClose} title="关闭">✕</button>
+      </div>
+
+      {detail.loading ? (
+        <div style={{ padding: 24 }}><Loading /></div>
+      ) : (
+        <div style={{ maxHeight: '54vh', overflowY: 'auto', margin: '14px 0 4px' }}>
+          {members.map((m) => {
+            const cur = marks[m.id];
+            return (
+              <div key={m.id} className="flex-between" style={{ padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
+                <strong>{m.full_name}</strong>
+                <div className="seg">
+                  <button
+                    className={cur === AttendanceStatus.Present ? 'on-good' : ''}
+                    onClick={() => set(m.id, AttendanceStatus.Present)}
+                  >
+                    {ATTENDANCE_LABELS[AttendanceStatus.Present]}
+                  </button>
+                  <button
+                    className={cur === AttendanceStatus.Excused ? 'on-warn' : ''}
+                    onClick={() => set(m.id, AttendanceStatus.Excused)}
+                  >
+                    {ATTENDANCE_LABELS[AttendanceStatus.Excused]}
+                  </button>
+                  <button
+                    className={cur === AttendanceStatus.Absent ? 'on-crit' : ''}
+                    onClick={() => set(m.id, AttendanceStatus.Absent)}
+                  >
+                    {ATTENDANCE_LABELS[AttendanceStatus.Absent]}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {members.length === 0 && <div className="faint" style={{ textAlign: 'center', padding: 20 }}>暂无在册成员可点名。</div>}
+        </div>
+      )}
+
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onClose}>关闭</button>
+        <button className="btn accent" onClick={save} disabled={saving || detail.loading}>
           保存点名（{marked}）
         </button>
       </div>
-      {members.map((m) => {
-        const cur = marks[m.id];
-        return (
-          <div key={m.id} className="flex-between" style={{ padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-            <strong>{m.full_name}</strong>
-            <div className="seg">
-              <button
-                className={cur === AttendanceStatus.Present ? 'on-good' : ''}
-                onClick={() => set(m.id, AttendanceStatus.Present)}
-              >
-                {ATTENDANCE_LABELS[AttendanceStatus.Present]}
-              </button>
-              <button
-                className={cur === AttendanceStatus.Excused ? 'on-warn' : ''}
-                onClick={() => set(m.id, AttendanceStatus.Excused)}
-              >
-                {ATTENDANCE_LABELS[AttendanceStatus.Excused]}
-              </button>
-              <button
-                className={cur === AttendanceStatus.Absent ? 'on-crit' : ''}
-                onClick={() => set(m.id, AttendanceStatus.Absent)}
-              >
-                {ATTENDANCE_LABELS[AttendanceStatus.Absent]}
-              </button>
-            </div>
-          </div>
-        );
-      })}
-      {members.length === 0 && <div className="faint" style={{ textAlign: 'center', padding: 20 }}>暂无在册成员可点名。</div>}
-    </div>
+    </Modal>
   );
 }
 

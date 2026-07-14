@@ -81,40 +81,40 @@ export default function MembersPage() {
     <>
       <ErrorBanner message={error} />
 
-      <div className="flex-between flex-wrap mb-16">
-        <div className="flex gap-8 flex-wrap">
+      <div className="flex gap-8 flex-wrap mb-12">
+        <button
+          className={`chip ${roleFilter === 'all' ? 'on' : ''}`}
+          onClick={() => setRoleFilter('all')}
+        >
+          全部 {counts.all}
+        </button>
+        {MEMBER_ROLE_FILTERS.map((r) => (
           <button
-            className={`chip ${roleFilter === 'all' ? 'on' : ''}`}
-            onClick={() => setRoleFilter('all')}
+            key={r}
+            className={`chip ${roleFilter === r ? 'on' : ''}`}
+            onClick={() => setRoleFilter(r)}
           >
-            全部 {counts.all}
+            {r} {counts[r] ?? 0}
           </button>
-          {MEMBER_ROLE_FILTERS.map((r) => (
-            <button
-              key={r}
-              className={`chip ${roleFilter === r ? 'on' : ''}`}
-              onClick={() => setRoleFilter(r)}
-            >
-              {r} {counts[r] ?? 0}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-8 items-center">
-          <button className="btn ghost sm" onClick={exportMembers} disabled={rows.length === 0}>
-            ⬇ 导出 Excel
-          </button>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="🔍 搜索姓名…"
-            style={{ width: 200 }}
-          />
-        </div>
+        ))}
       </div>
 
-      <div className="card" style={{ padding: 6 }}>
+      <div className="flex-between flex-wrap gap-8 mb-16">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="🔍 搜索姓名…"
+          style={{ maxWidth: 280, flex: 1 }}
+        />
+        <button className="btn ghost sm" onClick={exportMembers} disabled={rows.length === 0}>
+          ⬇ 导出 Excel
+        </button>
+      </div>
+
+      {/* Desktop — table */}
+      <div className="card only-desktop" style={{ padding: 6 }}>
         <div className="table-wrap">
-          <table className="stack">
+          <table>
             <thead>
               <tr>
                 <th>成员</th>
@@ -131,20 +131,20 @@ export default function MembersPage() {
                 const role = memberRoleZh(m);
                 return (
                   <tr key={m.id} className="row-click" onClick={() => router.push(`/members/${m.id}`)}>
-                    <td data-label="成员">
+                    <td>
                       <strong>{m.full_name}</strong>
                     </td>
-                    <td data-label="身份">
+                    <td>
                       <RoleBadge role={role} />
                     </td>
-                    <td className="muted" data-label="所属小组">{m.group?.name ?? '未分组'}</td>
-                    <td className="muted tnum" data-label="联系方式">{m.phone ?? '—'}</td>
-                    <td data-label="状态">
+                    <td className="muted">{m.group?.name ?? '未分组'}</td>
+                    <td className="muted tnum">{m.phone ?? '—'}</td>
+                    <td>
                       <span className={`badge ${memberStatusClass(m.status)}`}>
                         {memberStatusLabel(m.status)}
                       </span>
                     </td>
-                    <td className="muted tnum" data-label="加入日期">{formatDate(m.joined_at)}</td>
+                    <td className="muted tnum">{formatDate(m.joined_at)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="btn ghost sm">档案 →</button>
                     </td>
@@ -161,6 +161,37 @@ export default function MembersPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile — list tiles: name + 档案, 身份·小组, 联系方式, 状态·加入日期 */}
+      <div className="only-mobile">
+        {rows.map((m) => {
+          const role = memberRoleZh(m);
+          return (
+            <div key={m.id} className="mtile" onClick={() => router.push(`/members/${m.id}`)}>
+              <div className="mtile-row1">
+                <strong>{m.full_name}</strong>
+                <span className="mtile-cta">档案 →</span>
+              </div>
+              <div className="mtile-line">
+                <RoleBadge role={role} />
+                <span>· {m.group?.name ?? '未分组'}</span>
+              </div>
+              <div className="mtile-line">{m.phone ?? '—'}</div>
+              <div className="mtile-line">
+                <span className={`badge ${memberStatusClass(m.status)}`}>
+                  {memberStatusLabel(m.status)}
+                </span>
+                <span>· {formatDate(m.joined_at)}</span>
+              </div>
+            </div>
+          );
+        })}
+        {rows.length === 0 && (
+          <div className="faint" style={{ textAlign: 'center', padding: 28 }}>
+            没有符合条件的成员。
+          </div>
+        )}
       </div>
 
       <div className="hint mt-14">

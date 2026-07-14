@@ -1038,6 +1038,66 @@ textarea {
   }
 }
 
+/* Two-column group layout collapses to a single full-width column on tablet
+   and below (left panel over right panel). */
+@media (max-width: 860px) {
+  [data-glayout] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Desktop / mobile visibility helpers */
+.only-mobile {
+  display: none;
+}
+@media (max-width: 640px) {
+  .only-desktop {
+    display: none;
+  }
+  .only-mobile {
+    display: block;
+  }
+}
+
+/* Member list tiles (custom mobile layout) */
+.mtile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.mtile-row1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.mtile-row1 strong {
+  font-size: 15px;
+}
+.mtile-cta {
+  color: var(--brand);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mtile-line {
+  margin-top: 7px;
+  font-size: 12.5px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ==========================================================================
    Responsive stacked tables (list-tile cards on small screens)
    Opt-in via <table class="stack"> — desktop appearance is unchanged.
