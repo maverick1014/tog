@@ -5,6 +5,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    // Unit tests live in src/**; e2e/** is Playwright and must not be picked up
+    // by Vitest (its default glob would otherwise match the .spec.ts files).
+    include: ['src/**/*.{test,spec}.ts'],
+    exclude: ['e2e/**', 'node_modules/**'],
   },
   resolve: {
     alias: {

@@ -10,7 +10,9 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report e2e/.report"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.20.1",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
