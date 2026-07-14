@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ToastProvider } from './ui';
@@ -60,29 +53,10 @@ const NAV: {
   },
 ];
 
-function useTheme() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  useEffect(() => {
-    const saved = (localStorage.getItem('tog-theme') as 'light' | 'dark') || 'light';
-    setTheme(saved);
-    document.documentElement.setAttribute('data-theme', saved);
-  }, []);
-  const toggle = useCallback(() => {
-    setTheme((t) => {
-      const next = t === 'light' ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('tog-theme', next);
-      return next;
-    });
-  }, []);
-  return { theme, toggle };
-}
-
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
   const [chrome, setChrome] = useState<Chrome>({ title: '仪表盘' });
-  const { theme, toggle } = useTheme();
 
   // Close the mobile drawer on navigation.
   useEffect(() => {
@@ -152,14 +126,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               </div>
               <div className="flex items-center gap-10">
-                <button
-                  className="icon-btn"
-                  onClick={toggle}
-                  aria-label="切换主题"
-                  title="切换深色 / 浅色"
-                >
-                  {theme === 'dark' ? '☀' : '☾'}
-                </button>
                 {chrome.action}
               </div>
             </div>

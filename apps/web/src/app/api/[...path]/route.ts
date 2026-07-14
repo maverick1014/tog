@@ -57,6 +57,28 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
             .order('enrolled_at', { ascending: false }),
         ),
       );
+    } else if (r2 === 'avatar' && method === 'POST') {
+      const form = await req.formData();
+      const file = form.get('file');
+      if (!(file instanceof File)) throw new HttpError(400, '缺少文件');
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${r1}/${Date.now()}.${ext}`;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const up = await db.storage
+        .from('avatars')
+        .upload(path, bytes, { contentType: file.type || 'image/jpeg', upsert: true });
+      if (up.error) throw new HttpError(500, up.error.message);
+      const { data: pub } = db.storage.from('avatars').getPublicUrl(path);
+      return json(
+        unwrap(
+          await db
+            .from('members')
+            .update({ avatar_url: pub.publicUrl })
+            .eq('id', r1)
+            .select()
+            .single(),
+        ),
+      );
     } else if (!r2) {
       if (method === 'GET')
         return json(unwrap(await db.from('members').select(MEMBER_SELECT).eq('id', r1).single()));

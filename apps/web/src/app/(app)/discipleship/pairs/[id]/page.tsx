@@ -15,10 +15,10 @@ export default function PairDetailPage() {
   const pair = useFetch<PairDetail>(`/discipleship/pairs/${id}`);
   const allPairs = useFetch<PairRow[]>('/discipleship/pairs');
 
-  usePageChrome({ title: '对子进度', subtitle: '四十天一对一守望 · 40 天守望格与培育谱系' }, [id]);
+  usePageChrome({ title: '配对进度', subtitle: '四十天一对一守望 · 40 天守望格与培育谱系' }, [id]);
 
   if (pair.loading) return <Loading />;
-  if (pair.error || !pair.data) return <ErrorBanner message={pair.error ?? '找不到对子'} />;
+  if (pair.error || !pair.data) return <ErrorBanner message={pair.error ?? '找不到配对'} />;
 
   const p = pair.data;
   const total = p.program?.total_days ?? 40;

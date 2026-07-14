@@ -226,7 +226,7 @@ export default function DashboardPage() {
           }
         >
           {discFocus.length === 0 ? (
-            <p className="faint" style={{ fontSize: 13 }}>暂无进行中的门训对子。</p>
+            <p className="faint" style={{ fontSize: 13 }}>暂无进行中的门训配对。</p>
           ) : (
             discFocus.map((d) => (
               <div key={d.pair_id} className="flex items-center gap-12" style={{ padding: '9px 0', borderBottom: '1px solid var(--border)' }}>

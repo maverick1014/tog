@@ -40,6 +40,7 @@ export default function DiscipleshipPage() {
 
   const [filter, setFilter] = useState<Filter>('active');
   const [popup, setPopup] = useState<Node | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
   usePageChrome({
@@ -47,7 +48,7 @@ export default function DiscipleshipPage() {
     subtitle: '四十天一对一守望 · 世代培育 · 牧者实时总览',
     action: (
       <button className="btn" onClick={() => setAddOpen(true)} disabled={!programId}>
-        ＋ 新增对子
+        ＋ 新增配对
       </button>
     ),
   });
@@ -102,6 +103,61 @@ export default function DiscipleshipPage() {
     );
   };
 
+  const forestView = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+      {forest.map((tree, ti) => (
+        <div
+          key={ti}
+          style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-2)', padding: '12px 14px' }}
+        >
+          <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            <strong className="serif" style={{ fontSize: 14, color: 'var(--ink)' }}>{tree.rootName}</strong>
+            {' · '}{tree.rootRole} · 起点
+          </div>
+          <div className="table-wrap">
+            <div style={{ position: 'relative', width: tree.width, height: tree.height, minWidth: '100%' }}>
+              <svg width={tree.width} height={tree.height} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+                <path d={tree.path} fill="none" stroke="var(--border)" strokeWidth={1.5} />
+              </svg>
+              {tree.nodes.map((tn) => (
+                <div
+                  key={tn.id}
+                  onClick={tn.node ? () => setPopup(tn.node!) : undefined}
+                  style={{
+                    position: 'absolute',
+                    left: tn.left,
+                    top: tn.top,
+                    width: 152,
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    background: 'var(--surface)',
+                    padding: '9px 12px',
+                    cursor: tn.node ? 'pointer' : 'default',
+                    boxShadow: 'var(--shadow)',
+                  }}
+                >
+                  <div className="flex-between gap-6">
+                    <strong className="serif" style={{ fontSize: 13.5 }}>{tn.name}</strong>
+                    <span className="dot" style={{ background: roleDot(tn.role) }} />
+                  </div>
+                  <span className="badge" style={{ ...roleTagStyle(tn.role), fontSize: 10.5, marginTop: 3 }}>{tn.role}</span>
+                  {tn.node ? (
+                    <div className="flex items-center gap-6" style={{ marginTop: 7 }}>
+                      <div className="bar thin"><span style={{ width: `${tn.node.pct}%` }} /></div>
+                      <span className="faint" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{tn.node.days}/{tn.node.total}</span>
+                    </div>
+                  ) : (
+                    <div className="faint" style={{ fontSize: 10, marginTop: 7 }}>牧者 · 起点</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   if (pairs.loading || programs.loading) return <Loading />;
 
   if (!programId) {
@@ -129,65 +185,19 @@ export default function DiscipleshipPage() {
                 {f === 'active' ? '在训' : f === 'done' ? '已出师' : '待开始'} {counts[f]}
               </button>
             ))}
+            {filter === 'active' && forest.length > 0 && (
+              <button className="chip" onClick={() => setFullscreen(true)} title="全屏查看">
+                ⛶ 全屏
+              </button>
+            )}
           </div>
         </div>
 
         {filter === 'active' &&
           (forest.length === 0 ? (
-            <div className="empty">目前没有进行中的对子。点右上角「＋ 新增对子」开始接棒。</div>
+            <div className="empty">目前没有进行中的配对。点右上角「＋ 新增配对」开始接棒。</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
-              {forest.map((tree, ti) => (
-                <div
-                  key={ti}
-                  style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-2)', padding: '12px 14px' }}
-                >
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-                    <strong className="serif" style={{ fontSize: 14, color: 'var(--ink)' }}>{tree.rootName}</strong>
-                    {' · '}{tree.rootRole} · 起点
-                  </div>
-                  <div className="table-wrap">
-                    <div style={{ position: 'relative', width: tree.width, height: tree.height, minWidth: '100%' }}>
-                      <svg width={tree.width} height={tree.height} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
-                        <path d={tree.path} fill="none" stroke="var(--border)" strokeWidth={1.5} />
-                      </svg>
-                      {tree.nodes.map((tn) => (
-                        <div
-                          key={tn.id}
-                          onClick={tn.node ? () => setPopup(tn.node!) : undefined}
-                          style={{
-                            position: 'absolute',
-                            left: tn.left,
-                            top: tn.top,
-                            width: 152,
-                            border: '1px solid var(--border)',
-                            borderRadius: 10,
-                            background: 'var(--surface)',
-                            padding: '9px 12px',
-                            cursor: tn.node ? 'pointer' : 'default',
-                            boxShadow: 'var(--shadow)',
-                          }}
-                        >
-                          <div className="flex-between gap-6">
-                            <strong className="serif" style={{ fontSize: 13.5 }}>{tn.name}</strong>
-                            <span className="dot" style={{ background: roleDot(tn.role) }} />
-                          </div>
-                          <span className="badge" style={{ ...roleTagStyle(tn.role), fontSize: 10.5, marginTop: 3 }}>{tn.role}</span>
-                          {tn.node ? (
-                            <div className="flex items-center gap-6" style={{ marginTop: 7 }}>
-                              <div className="bar thin"><span style={{ width: `${tn.node.pct}%` }} /></div>
-                              <span className="faint" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{tn.node.days}/{tn.node.total}</span>
-                            </div>
-                          ) : (
-                            <div className="faint" style={{ fontSize: 10, marginTop: 7 }}>牧者 · 起点</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            forestView
           ))}
 
         {filter === 'done' && <DiscList list={doneList} kind="done" onOpen={setPopup} />}
@@ -199,15 +209,15 @@ export default function DiscipleshipPage() {
         <div className="card-head">
           <div>
             <h3>牧者总览</h3>
-            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>点「进度」查看 40 天详情 · 点「表单」复制带领者填写链接</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>点「进度」查看 40 天详情与链接 · 点「表单」直接打开填写页</div>
           </div>
           <span className="badge b-good">● 实时</span>
         </div>
         <div className="table-wrap">
-          <table>
+          <table className="stack">
             <thead>
               <tr>
-                <th>对子（被带领 ← 带领）</th>
+                <th>配对（被带领 ← 带领）</th>
                 <th style={{ width: 200 }}>进度</th>
                 <th>状态</th>
                 <th />
@@ -216,25 +226,25 @@ export default function DiscipleshipPage() {
             <tbody>
               {nodes.map((n) => (
                 <tr key={n.pair.id}>
-                  <td>
+                  <td data-label="配对">
                     <strong>{n.pair.trainee?.full_name}</strong>
                     <span className="faint"> ← {n.pair.mentor?.full_name}</span>
                   </td>
-                  <td>
+                  <td data-label="进度">
                     <div className="progress-row">
                       <div className="bar"><span style={{ width: `${n.pct}%` }} /></div>
                       <span className="pct">{n.days}/{n.total}</span>
                     </div>
                   </td>
-                  <td><span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span></td>
+                  <td data-label="状态"><span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span></td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn ghost sm" style={{ marginRight: 6 }} onClick={() => router.push(`/discipleship/pairs/${n.pair.id}`)}>进度</button>
-                    <button className="btn ghost sm" style={{ color: 'var(--brand)' }} onClick={() => setPopup(n)}>🔗 表单</button>
+                    <button className="btn ghost sm" style={{ marginRight: 6 }} onClick={() => setPopup(n)}>进度</button>
+                    <button className="btn ghost sm" style={{ color: 'var(--brand)' }} onClick={() => window.open(`/d/${n.pair.form_token}`, '_blank')}>🔗 表单</button>
                   </td>
                 </tr>
               ))}
               {nodes.length === 0 && (
-                <tr><td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无对子。</td></tr>
+                <tr><td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无配对。</td></tr>
               )}
             </tbody>
           </table>
@@ -243,6 +253,22 @@ export default function DiscipleshipPage() {
 
       {popup && (
         <ProgressPopup node={popup} onClose={() => setPopup(null)} onCopy={copyLink} onOpenForm={(tk) => window.open(`/d/${tk}`, '_blank')} onDetail={(id) => router.push(`/discipleship/pairs/${id}`)} />
+      )}
+
+      {fullscreen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'var(--paper)', overflow: 'auto', padding: '18px 22px 40px' }}>
+          <div
+            className="flex-between"
+            style={{ position: 'sticky', top: 0, background: 'var(--paper)', paddingBottom: 12, zIndex: 1 }}
+          >
+            <div>
+              <h3 className="serif" style={{ margin: 0, fontSize: 18 }}>培育链 · 接棒图</h3>
+              <div className="muted" style={{ fontSize: 12 }}>世代培育树 · 全屏查看</div>
+            </div>
+            <button className="icon-btn" onClick={() => setFullscreen(false)} title="退出全屏">✕</button>
+          </div>
+          {forestView}
+        </div>
       )}
 
       {addOpen && programId && (
@@ -255,7 +281,7 @@ export default function DiscipleshipPage() {
             setAddOpen(false);
             pairs.reload();
             overview.reload();
-            toast('已新增对子');
+            toast('已新增配对');
           }}
         />
       )}
@@ -379,7 +405,7 @@ function DiscList({
   if (list.length === 0) {
     return (
       <div className="empty" style={{ marginTop: 16 }}>
-        {kind === 'done' ? '尚无出师者。' : '没有待开始的对子。'}
+        {kind === 'done' ? '尚无出师者。' : '没有待开始的配对。'}
       </div>
     );
   }
@@ -526,10 +552,10 @@ function AddPairModal({
   };
 
   return (
-    <Modal title="新增守望对子" onClose={onClose}>
+    <Modal title="新增守望配对" onClose={onClose}>
       {err && <ErrorBanner message={err} />}
       <p className="muted" style={{ margin: '0 0 14px', fontSize: 12.5, lineHeight: 1.6 }}>
-        建立一个新的四十天守望对子。选择<strong style={{ color: 'var(--ink)' }}>带领者</strong>与<strong style={{ color: 'var(--ink)' }}>被带领者</strong>，系统会依带领者已有的对子自动接入接棒图。
+        建立一个新的四十天守望配对。选择<strong style={{ color: 'var(--ink)' }}>带领者</strong>与<strong style={{ color: 'var(--ink)' }}>被带领者</strong>，系统会依带领者已有的配对自动接入接棒图。
       </p>
       <Field label="带领者">
         <select value={mentorId} onChange={(e) => setMentorId(e.target.value)}>
@@ -540,7 +566,7 @@ function AddPairModal({
         </select>
       </Field>
       <div style={{ textAlign: 'center', color: 'var(--accent)', fontSize: 16, fontWeight: 700, margin: '-2px 0 8px' }}>↓</div>
-      <Field label="被带领者（已在对子中的不显示）">
+      <Field label="被带领者（已在配对中的不显示）">
         <select value={traineeId} onChange={(e) => setTraineeId(e.target.value)}>
           <option value="">选择成员…</option>
           {members
@@ -550,10 +576,10 @@ function AddPairModal({
             ))}
         </select>
       </Field>
-      <div className="hint" style={{ marginBottom: 6 }}>🕊 新对子从第 1 天开始（进度 0 / 40）。开始填写后即出现在接棒图中。</div>
+      <div className="hint" style={{ marginBottom: 6 }}>🕊 新配对从第 1 天开始（进度 0 / 40）。开始填写后即出现在接棒图中。</div>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
-        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '建立对子'}</button>
+        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '建立配对'}</button>
       </div>
     </Modal>
   );

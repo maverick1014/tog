@@ -1,9 +1,11 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import { useRef, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
+import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Loading, ProgressBar, RoleBadge } from '@/components/ui';
+import { Avatar, ErrorBanner, Loading, ProgressBar, RoleBadge, useToast } from '@/components/ui';
 import { EnrollmentRow, MemberRow, PairRow } from '@/lib/types';
 import {
   categoryBadgeClass,
@@ -22,8 +24,29 @@ export default function MemberDetailPage() {
   const member = useFetch<MemberRow>(`/members/${id}`);
   const record = useFetch<EnrollmentRow[]>(`/members/${id}/trainings`);
   const allPairs = useFetch<PairRow[]>('/discipleship/pairs');
+  const toast = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
-  usePageChrome({ title: '成员详情', subtitle: '档案 · 个人培训记录 · 门训对子' }, [id]);
+  usePageChrome({ title: '成员详情', subtitle: '档案 · 个人培训记录 · 门训配对' }, [id]);
+
+  const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api.upload(`/members/${id}/avatar`, fd);
+      toast('头像已更新');
+      member.reload();
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
 
   if (member.loading) return <Loading />;
   if (member.error || !member.data) return <ErrorBanner message={member.error ?? '找不到成员'} />;
@@ -55,7 +78,7 @@ export default function MemberDetailPage() {
       <div className="card">
         <div className="flex-between flex-wrap">
           <div className="flex items-center gap-12">
-            <Avatar name={m.full_name} size="lg" />
+            <Avatar name={m.full_name} url={m.avatar_url} size="lg" />
             <div>
               <div className="flex items-center gap-10 flex-wrap">
                 <h2 style={{ margin: 0, fontSize: 22 }} className="serif">{m.full_name}</h2>
@@ -65,6 +88,21 @@ export default function MemberDetailPage() {
                 {m.chinese_name ? `${m.chinese_name} · ` : ''}
                 {m.group?.name ?? '未分组'}
               </div>
+              <button
+                className="btn ghost sm"
+                style={{ marginTop: 8 }}
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? '上传中…' : m.avatar_url ? '更换头像' : '上传头像'}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                onChange={onPickAvatar}
+                style={{ display: 'none' }}
+              />
             </div>
           </div>
         </div>
@@ -119,7 +157,7 @@ export default function MemberDetailPage() {
           </table>
         </div>
 
-        <div className="section-label" style={{ margin: '24px 0 12px' }}>门训对子</div>
+        <div className="section-label" style={{ margin: '24px 0 12px' }}>门训配对</div>
         {pairs.length === 0 ? (
           <div className="faint" style={{ fontSize: 13 }}>尚未参与四十天守望。</div>
         ) : (

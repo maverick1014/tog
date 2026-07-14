@@ -82,7 +82,7 @@ export default function DonationsPage() {
       </div>
       <div className="card" style={{ padding: 6 }}>
         <div className="table-wrap">
-          <table>
+          <table className="stack">
             <thead>
               <tr>
                 <th>日期</th>
@@ -95,11 +95,11 @@ export default function DonationsPage() {
             <tbody>
               {list.map((d) => (
                 <tr key={d.id}>
-                  <td className="muted tnum">{formatDate(d.donated_at)}</td>
-                  <td><strong>{d.member?.full_name ?? '（匿名）'}</strong></td>
-                  <td><span className={`badge ${fundBadgeClass(d.fund)}`}>{d.fund}</span></td>
-                  <td className="muted">{DONATION_METHOD_LABELS[d.method] ?? d.method}</td>
-                  <td style={{ textAlign: 'right' }} className="tnum"><strong>{formatMoney(d.amount)}</strong></td>
+                  <td className="muted tnum" data-label="日期">{formatDate(d.donated_at)}</td>
+                  <td data-label="奉献人"><strong>{d.member?.full_name ?? '（匿名）'}</strong></td>
+                  <td data-label="类别"><span className={`badge ${fundBadgeClass(d.fund)}`}>{d.fund}</span></td>
+                  <td className="muted" data-label="方式">{DONATION_METHOD_LABELS[d.method] ?? d.method}</td>
+                  <td style={{ textAlign: 'right' }} className="tnum" data-label="金额（RM）"><strong>{formatMoney(d.amount)}</strong></td>
                 </tr>
               ))}
               {list.length === 0 && (

@@ -45,6 +45,9 @@ export const ROLE_ORDER = [
   '新成员',
 ] as const;
 
+/** Member-directory filter chips: the seven ranks plus 未分组 (unassigned). */
+export const MEMBER_ROLE_FILTERS = [...ROLE_ORDER, '未分组'] as const;
+
 /**
  * Per-role tag palette — matches the Claude Design `roleTags` exactly. Each
  * derived role gets its own colour family (bg / fg / dot), not a shared tone.

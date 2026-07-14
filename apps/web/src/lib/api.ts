@@ -8,10 +8,12 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  // Let the browser set the multipart boundary for FormData bodies.
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const res = await fetch(`${BASE}/api${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers ?? {}),
     },
     cache: 'no-store',
@@ -37,6 +39,8 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, form: FormData) =>
+    request<T>(path, { method: 'POST', body: form }),
 };
 
 export { BASE as API_BASE };

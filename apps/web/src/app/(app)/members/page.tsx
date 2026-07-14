@@ -11,10 +11,10 @@ import { MemberRow } from '@/lib/types';
 import {
   formatDate,
   GENDER_LABELS,
+  MEMBER_ROLE_FILTERS,
   memberRoleZh,
   memberStatusClass,
   memberStatusLabel,
-  ROLE_ORDER,
 } from '@/lib/labels';
 import { ChurchRole, MemberStatus } from '@tog/shared';
 
@@ -40,7 +40,7 @@ export default function MembersPage() {
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: members.length };
-    ROLE_ORDER.forEach((r) => (c[r] = 0));
+    MEMBER_ROLE_FILTERS.forEach((r) => (c[r] = 0));
     for (const m of members) {
       const r = memberRoleZh(m);
       if (c[r] != null) c[r]++;
@@ -89,7 +89,7 @@ export default function MembersPage() {
           >
             全部 {counts.all}
           </button>
-          {ROLE_ORDER.map((r) => (
+          {MEMBER_ROLE_FILTERS.map((r) => (
             <button
               key={r}
               className={`chip ${roleFilter === r ? 'on' : ''}`}
@@ -114,7 +114,7 @@ export default function MembersPage() {
 
       <div className="card" style={{ padding: 6 }}>
         <div className="table-wrap">
-          <table>
+          <table className="stack">
             <thead>
               <tr>
                 <th>成员</th>
@@ -131,20 +131,20 @@ export default function MembersPage() {
                 const role = memberRoleZh(m);
                 return (
                   <tr key={m.id} className="row-click" onClick={() => router.push(`/members/${m.id}`)}>
-                    <td>
+                    <td data-label="成员">
                       <strong>{m.full_name}</strong>
                     </td>
-                    <td>
+                    <td data-label="身份">
                       <RoleBadge role={role} />
                     </td>
-                    <td className="muted">{m.group?.name ?? '未分组'}</td>
-                    <td className="muted tnum">{m.phone ?? '—'}</td>
-                    <td>
+                    <td className="muted" data-label="所属小组">{m.group?.name ?? '未分组'}</td>
+                    <td className="muted tnum" data-label="联系方式">{m.phone ?? '—'}</td>
+                    <td data-label="状态">
                       <span className={`badge ${memberStatusClass(m.status)}`}>
                         {memberStatusLabel(m.status)}
                       </span>
                     </td>
-                    <td className="muted tnum">{formatDate(m.joined_at)}</td>
+                    <td className="muted tnum" data-label="加入日期">{formatDate(m.joined_at)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="btn ghost sm">档案 →</button>
                     </td>
@@ -164,7 +164,7 @@ export default function MembersPage() {
       </div>
 
       <div className="hint mt-14">
-        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训对子。身份只读；在「小组管理」逐人设定。
+        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训配对。身份只读；在「小组管理」逐人设定。
       </div>
 
       {addOpen && (

@@ -28,6 +28,7 @@ export interface MemberRow {
   household_id: string | null;
   joined_at: string | null;
   notes: string | null;
+  avatar_url: string | null;
   group?: { id: string; name: string } | null;
   household?: { id: string; name: string } | null;
 }

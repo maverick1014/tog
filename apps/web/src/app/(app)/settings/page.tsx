@@ -94,7 +94,7 @@ export default function SettingsPage() {
 
       <div className="card" style={{ padding: 6 }}>
         <div className="table-wrap">
-          <table>
+          <table className="stack">
             <thead>
               <tr>
                 <th>账户 · 关联成员</th>
@@ -111,16 +111,16 @@ export default function SettingsPage() {
                 const role = u.member ? memberRoleZh(u.member) : '未分组';
                 return (
                   <tr key={u.id} className="row-click" onClick={() => setDetailId(u.id)}>
-                    <td>
+                    <td data-label="账户 · 关联成员">
                       <strong>{u.member?.full_name ?? '—'}</strong>
                     </td>
-                    <td>
+                    <td data-label="在组身份">
                       <RoleBadge role={role} />
                     </td>
-                    <td><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>
-                    <td className="muted">{u.email}</td>
-                    <td><span className={`badge ${accountStatusClass(u.status)}`}>{accountStatusLabel(u.status)}</span></td>
-                    <td className="muted" style={{ whiteSpace: 'nowrap' }}>{u.last_sign_in_at ? formatDateTime(u.last_sign_in_at) : '从未'}</td>
+                    <td data-label="权限角色"><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>
+                    <td className="muted" data-label="登录邮箱">{u.email}</td>
+                    <td data-label="状态"><span className={`badge ${accountStatusClass(u.status)}`}>{accountStatusLabel(u.status)}</span></td>
+                    <td className="muted" style={{ whiteSpace: 'nowrap' }} data-label="最近登录">{u.last_sign_in_at ? formatDateTime(u.last_sign_in_at) : '从未'}</td>
                     <td style={{ textAlign: 'right' }}><button className="btn ghost sm">管理</button></td>
                   </tr>
                 );

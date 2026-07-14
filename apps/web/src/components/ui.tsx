@@ -32,12 +32,19 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function Avatar({
   name,
+  url,
   size = 'sm',
 }: {
   name: string | null | undefined;
+  url?: string | null;
   size?: 'sm' | 'md' | 'lg';
 }) {
-  return <div className={`avatar ${size === 'sm' ? '' : size}`}>{initialOf(name)}</div>;
+  const cls = `avatar ${size === 'sm' ? '' : size}`;
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img className={cls} src={url} alt={name ?? ''} style={{ objectFit: 'cover' }} />;
+  }
+  return <div className={cls}>{initialOf(name)}</div>;
 }
 
 export function Badge({
