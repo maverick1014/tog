@@ -227,8 +227,9 @@ export default function DiscipleshipPage() {
           </div>
           <span className="badge b-good">● 实时</span>
         </div>
-        <div className="table-wrap">
-          <table className="stack">
+        {/* Desktop — table */}
+        <div className="table-wrap only-desktop">
+          <table>
             <thead>
               <tr>
                 <th>配对（被带领 ← 带领）</th>
@@ -240,17 +241,17 @@ export default function DiscipleshipPage() {
             <tbody>
               {nodes.map((n) => (
                 <tr key={n.pair.id}>
-                  <td data-label="配对">
+                  <td>
                     <strong>{n.pair.trainee?.full_name}</strong>
                     <span className="faint"> ← {n.pair.mentor?.full_name}</span>
                   </td>
-                  <td data-label="进度">
+                  <td>
                     <div className="progress-row">
                       <div className="bar"><span style={{ width: `${n.pct}%` }} /></div>
                       <span className="pct">{n.days}/{n.total}</span>
                     </div>
                   </td>
-                  <td data-label="状态"><span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span></td>
+                  <td><span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span></td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn ghost sm" style={{ marginRight: 6 }} onClick={() => setPopup(n)}>进度</button>
                     <button className="btn ghost sm" style={{ color: 'var(--brand)' }} onClick={() => window.open(`/d/${n.pair.form_token}`, '_blank')}>🔗 表单</button>
@@ -262,6 +263,38 @@ export default function DiscipleshipPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile — list tiles: 被带领 ← 带领 + 表单, then progress · status */}
+        <div className="only-mobile" style={{ marginTop: 4 }}>
+          {nodes.map((n) => (
+            <div key={n.pair.id} className="mtile" onClick={() => setPopup(n)}>
+              <div className="mtile-row1">
+                <div style={{ minWidth: 0 }}>
+                  <strong>{n.pair.trainee?.full_name}</strong>
+                  <span className="faint"> ← {n.pair.mentor?.full_name}</span>
+                </div>
+                <button
+                  className="mtile-cta"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`/d/${n.pair.form_token}`, '_blank');
+                  }}
+                >
+                  🔗 表单
+                </button>
+              </div>
+              <div className="mtile-line" style={{ marginTop: 9 }}>
+                <div className="bar" style={{ flex: 1 }}><span style={{ width: `${n.pct}%` }} /></div>
+                <span className="pct" style={{ whiteSpace: 'nowrap' }}>{n.days}/{n.total}</span>
+                <span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span>
+              </div>
+            </div>
+          ))}
+          {nodes.length === 0 && (
+            <div className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无配对。</div>
+          )}
         </div>
       </div>
 

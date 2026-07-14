@@ -7,7 +7,7 @@ import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
 import { exportMatrix } from '@/lib/export';
 import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
-import { ATTENDANCE_LABELS, formatDate, positionZh, roleDot, roleTagStyle } from '@/lib/labels';
+import { ATTENDANCE_LABELS, positionZh, roleDot, roleTagStyle } from '@/lib/labels';
 import {
   AttendanceStatus,
   canPromoteToLeadership,
@@ -352,8 +352,6 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
   const { data, loading, reload } = useFetch<GroupAttendanceResponse>(
     `/groups/${groupId}/attendance`,
   );
-  const [adding, setAdding] = useState(false);
-  const [date, setDate] = useState('');
 
   const toggle = async (meetingId: string, memberId: string, cur: AttendanceStatus | null) => {
     const next =
@@ -365,13 +363,16 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
   };
 
   const addWeek = async () => {
-    if (!date) return;
+    // Weeks are recorded as 第1周 / 第2周 …; we still store a date under the
+    // hood (last week + 7 days, or today) purely to keep a stable order.
+    const last = data?.meetings[data.meetings.length - 1]?.meeting_date;
+    const base = last ? new Date(last) : new Date();
+    if (last) base.setDate(base.getDate() + 7);
+    const iso = base.toISOString().slice(0, 10);
     try {
-      await api.post(`/groups/${groupId}/meetings`, { meeting_date: date });
-      setDate('');
-      setAdding(false);
+      await api.post(`/groups/${groupId}/meetings`, { meeting_date: iso });
       reload();
-      toast('已添加本周');
+      toast('已添加一周');
     } catch (e) {
       toast((e as Error).message);
     }
@@ -391,7 +392,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
 
   const exportGrid = () => {
     if (!data) return;
-    const headers = ['成员', ...data.meetings.map((m) => formatDate(m.meeting_date)), '出席次数'];
+    const headers = ['成员', ...data.meetings.map((_, i) => `第${i + 1}周`), '出席次数'];
     const matrix = data.rows.map((r) => [
       r.member.full_name,
       ...r.cells.map((c) => (c.status ? ATTENDANCE_LABELS[c.status] : '')),
@@ -413,16 +414,9 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
           <button className="btn ghost sm" onClick={exportGrid} disabled={!data || data.meetings.length === 0}>
             ⬇ 导出
           </button>
-          <button className="btn sm" onClick={() => setAdding((a) => !a)}>＋ 添加本周</button>
+          <button className="btn sm" onClick={addWeek}>＋ 添加一周</button>
         </div>
       </div>
-
-      {adding && (
-        <div className="flex gap-8 mb-14" style={{ maxWidth: 320 }}>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <button className="btn accent sm" onClick={addWeek}>添加</button>
-        </div>
-      )}
 
       {loading ? (
         <Loading />
@@ -434,9 +428,9 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
             <thead>
               <tr>
                 <th>成员</th>
-                {data.meetings.map((m) => (
+                {data.meetings.map((m, i) => (
                   <th key={m.id} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                    {formatDate(m.meeting_date)}
+                    第{i + 1}周
                     <button
                       onClick={() => delWeek(m.id)}
                       title="删除本周"
