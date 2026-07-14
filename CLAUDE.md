@@ -18,7 +18,7 @@ These are hard requirements for this codebase. A change that breaks one is a
 review finding, not a preference. Cite the rule number in the finding.
 
 ### G1 — CRUD completeness on every management page
-Every entity page (成员、小组、聚会、奉献、培训、四十天守望配对、账户) must offer the
+Every entity page (成员、小组、聚会、培训、四十天守望配对、账户) must offer the
 full set its users need: **Create, Read, Update, Delete**. If the API supports an
 operation, the UI must expose it (or the omission must be a deliberate,
 documented decision). A page that can only create + list is incomplete.

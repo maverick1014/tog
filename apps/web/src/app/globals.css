@@ -1038,6 +1038,15 @@ textarea {
   }
   .topbar {
     padding: 14px 16px 12px;
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  /* On phones the action buttons drop onto their own full-width row so long
+     labels (e.g. 修改我的密码 + ＋新建账户) never overflow the header. */
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
   }
   .content {
     padding: 18px 16px 64px;

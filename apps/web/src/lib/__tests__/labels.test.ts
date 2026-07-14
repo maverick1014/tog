@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   roleTagStyle,
   roleDot,
-  fundBadgeClass,
   categoryBadgeClass,
   enrollmentStatusClass,
   memberStatusLabel,
@@ -22,16 +21,6 @@ describe('role labels', () => {
   it('unknown role falls back to the 未分组 palette', () => {
     expect(roleTagStyle('不存在的身份')).toEqual({ background: '#f0eeec', color: '#9a938f' });
     expect(roleDot('不存在的身份')).toBe('#c3bbb6');
-  });
-});
-
-describe('fundBadgeClass', () => {
-  it('maps each fund to its badge class', () => {
-    expect(fundBadgeClass('十一奉献')).toBe('b-brand');
-    expect(fundBadgeClass('主日奉献')).toBe('b-accent');
-    expect(fundBadgeClass('建堂')).toBe('b-good');
-    expect(fundBadgeClass('宣教')).toBe('b-warn');
-    expect(fundBadgeClass('感恩')).toBe('b-gray');
   });
 });
 

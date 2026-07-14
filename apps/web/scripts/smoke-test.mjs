@@ -56,16 +56,6 @@ async function main() {
   const members = await fetch(`${BASE}/api/members`, authed).then((r) => r.json());
   check('members is a non-empty array', Array.isArray(members) && members.length > 0);
 
-  const summary = await fetch(`${BASE}/api/donations/summary`, authed).then((r) => r.json());
-  check(
-    'donations summary has numeric total + byFund object',
-    summary &&
-      typeof summary.total === 'number' &&
-      summary.byFund &&
-      typeof summary.byFund === 'object' &&
-      !Array.isArray(summary.byFund),
-  );
-
   const programs = await fetch(`${BASE}/api/discipleship/programs`, authed).then((r) => r.json());
   check('programs is an array', Array.isArray(programs));
 

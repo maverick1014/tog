@@ -3,7 +3,6 @@ import {
   AccountStatus,
   AttendanceStatus,
   ChurchRole,
-  DonationMethod,
   EnrollmentStatus,
   EventType,
   Gender,
@@ -79,23 +78,6 @@ export interface EventDetail extends EventRow {
     status: AttendanceStatus;
     member?: { id: string; full_name: string };
   }[];
-}
-
-export interface DonationRow {
-  id: string;
-  member_id: string | null;
-  amount: number;
-  currency: string;
-  fund: string;
-  method: DonationMethod;
-  donated_at: string;
-  notes: string | null;
-  member?: { id: string; full_name: string } | null;
-}
-
-export interface DonationSummary {
-  total: number;
-  byFund: Record<string, number>;
 }
 
 export interface TrainingRow {

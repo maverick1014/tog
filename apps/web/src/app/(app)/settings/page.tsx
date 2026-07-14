@@ -207,7 +207,6 @@ function AccountDetail({
   const [twoFactor, setTwoFactor] = useState(account.two_factor);
   const [language, setLanguage] = useState(account.language);
   const [nDisc, setNDisc] = useState(account.notify_discipleship);
-  const [nDon, setNDon] = useState(account.notify_donation);
   const [nWeekly, setNWeekly] = useState(account.notify_weekly);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -263,7 +262,6 @@ function AccountDetail({
         two_factor: twoFactor,
         language,
         notify_discipleship: nDisc,
-        notify_donation: nDon,
         notify_weekly: nWeekly,
       });
       onSaved();
@@ -370,7 +368,6 @@ function AccountDetail({
       <div className="card mt-16">
         <h3 style={{ marginBottom: 6 }}>通知</h3>
         <NotifyRow title="门训进度更新" sub="带领者提交每日守望时通知" on={nDisc} set={setNDisc} />
-        <NotifyRow title="奉献记录" sub="有新奉献录入时通知" on={nDon} set={setNDon} />
         <div className="flex-between" style={{ padding: '11px 0' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>每周概览邮件</div>

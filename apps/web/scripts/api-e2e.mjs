@@ -77,15 +77,6 @@ async function main() {
     ok('delete member → 200', del.status === 200);
   }
 
-  // ---- Donations CRUD -----------------------------------------------------
-  const mkDon = await req('POST', '/api/donations', { ...H, body: { amount: 12.34, currency: 'MYR', fund: '主日奉献', method: 'cash' } });
-  ok('create donation → 200 + id', mkDon.status === 200 && mkDon.json?.id, `status ${mkDon.status} ${JSON.stringify(mkDon.json).slice(0,120)}`);
-  const donId = mkDon.json?.id;
-  if (donId) {
-    ok('update donation → 200', (await req('PATCH', `/api/donations/${donId}`, { ...H, body: { amount: 56.78 } })).status === 200);
-    ok('delete donation → 200', (await req('DELETE', `/api/donations/${donId}`, H)).status === 200);
-  }
-
   // ---- Events CRUD --------------------------------------------------------
   const mkEv = await req('POST', '/api/events', { ...H, body: { title: `E2E聚会-${Date.now()}`, event_type: 'service', starts_at: new Date('2026-08-01T10:00:00Z').toISOString() } });
   ok('create event → 200 + id', mkEv.status === 200 && mkEv.json?.id, `status ${mkEv.status} ${JSON.stringify(mkEv.json).slice(0,120)}`);

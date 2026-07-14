@@ -227,44 +227,6 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
     }
   }
 
-  // ---- Donations ------------------------------------------------------------
-  if (r0 === 'donations') {
-    if (r1 === 'summary' && method === 'GET') {
-      const rows = unwrap(await db.from('donations').select('fund, amount')) as Array<{
-        fund: string;
-        amount: number;
-      }>;
-      const byFund: Record<string, number> = {};
-      let total = 0;
-      for (const row of rows) {
-        const amt = Number(row.amount);
-        byFund[row.fund] = (byFund[row.fund] ?? 0) + amt;
-        total += amt;
-      }
-      return json({ total, byFund });
-    }
-    if (!r1) {
-      if (method === 'GET') {
-        let query = db
-          .from('donations')
-          .select('*, member:members(id,full_name)')
-          .order('donated_at', { ascending: false });
-        if (q.get('member_id')) query = query.eq('member_id', q.get('member_id'));
-        if (q.get('fund')) query = query.eq('fund', q.get('fund'));
-        return json(unwrap(await query));
-      }
-      if (method === 'POST')
-        return json(unwrap(await db.from('donations').insert(await body()).select().single()));
-    } else if (!r2) {
-      if (method === 'PATCH')
-        return json(unwrap(await db.from('donations').update(await body()).eq('id', r1).select().single()));
-      if (method === 'DELETE') {
-        unwrap(await db.from('donations').delete().eq('id', r1).select().single());
-        return json({ id: r1 });
-      }
-    }
-  }
-
   // ---- Trainings ------------------------------------------------------------
   if (r0 === 'trainings') {
     // /trainings/sessions/:sessionId ...

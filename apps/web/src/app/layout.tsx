@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: '主恩堂 · 教会管理系统',
-  description: '人 · 聚会 · 奉献 · 培训 · 四十天一对一守望',
+  description: '人 · 聚会 · 培训 · 四十天一对一守望',
 };
 
 export default function RootLayout({

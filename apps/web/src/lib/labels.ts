@@ -4,7 +4,6 @@ import {
   AccountStatus,
   AttendanceStatus,
   ChurchRole,
-  DonationMethod,
   EnrollmentStatus,
   EventType,
   Gender,
@@ -128,42 +127,6 @@ export const ATTENDANCE_LABELS: Record<string, string> = {
   [AttendanceStatus.Excused]: '请假',
   [AttendanceStatus.Absent]: '缺席',
 };
-
-/* -------------------------------------------------------------------------
- * Donations
- * ---------------------------------------------------------------------- */
-
-export const DONATION_FUNDS = ['十一奉献', '主日奉献', '建堂', '宣教', '感恩'];
-
-export function fundBadgeClass(fund: string): string {
-  switch (fund) {
-    case '十一奉献':
-      return 'b-brand';
-    case '主日奉献':
-      return 'b-accent';
-    case '建堂':
-      return 'b-good';
-    case '宣教':
-      return 'b-warn';
-    default:
-      return 'b-gray';
-  }
-}
-
-export const DONATION_METHOD_LABELS: Record<string, string> = {
-  [DonationMethod.Cash]: '现金',
-  [DonationMethod.BankTransfer]: '银行转账',
-  [DonationMethod.Card]: '刷卡',
-  [DonationMethod.Online]: '线上',
-  [DonationMethod.Other]: '其他',
-};
-
-export const DONATION_METHOD_OPTIONS = [
-  DonationMethod.Cash,
-  DonationMethod.BankTransfer,
-  DonationMethod.Card,
-  DonationMethod.Online,
-];
 
 /* -------------------------------------------------------------------------
  * Trainings & enrollment

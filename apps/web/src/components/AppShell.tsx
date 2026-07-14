@@ -50,7 +50,6 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { href: '/members', label: '成员目录', icon: '👥' },
       { href: '/groups', label: '小组管理', icon: '🔗' },
       { href: '/events', label: '聚会与出席', icon: '📅' },
-      { href: '/donations', label: '奉献管理', icon: '🕊' },
     ],
   },
   {
@@ -164,7 +163,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {chrome.subtitle && <div className="sub">{chrome.subtitle}</div>}
                 </div>
               </div>
-              <div className="flex items-center gap-10">
+              <div className="flex items-center gap-10 topbar-actions">
                 {chrome.action}
               </div>
             </div>
