@@ -45,23 +45,31 @@ export const ROLE_ORDER = [
   '新成员',
 ] as const;
 
-/** Dot colours forming a crimson→charcoal→faint ramp (from the brand). */
-export const ROLE_DOT: Record<string, string> = {
-  牧师: '#9e1c1f',
-  小组长: '#b23530',
-  副组长: '#c15a4c',
-  实习组长: '#d08375',
-  核心成员: '#57514e',
-  普通成员: '#837c79',
-  新成员: '#b0a9a6',
-  未分组: '#b0a9a6',
+/**
+ * Per-role tag palette — matches the Claude Design `roleTags` exactly. Each
+ * derived role gets its own colour family (bg / fg / dot), not a shared tone.
+ */
+export const ROLE_TAG: Record<string, { bg: string; fg: string; dot: string }> = {
+  牧师: { bg: '#fbe3e0', fg: '#b3261e', dot: '#d1362b' },
+  小组长: { bg: '#fce7d4', fg: '#b5650f', dot: '#e0862b' },
+  副组长: { bg: '#faf0c6', fg: '#8a6a0d', dot: '#d4a715' },
+  实习组长: { bg: '#d7f0df', fg: '#1f7a44', dot: '#2f9e5b' },
+  核心成员: { bg: '#dae8fb', fg: '#1d5fb8', dot: '#2f7ad1' },
+  普通成员: { bg: '#e5e8ec', fg: '#4a5560', dot: '#7c8894' },
+  新成员: { bg: '#eae1f8', fg: '#6b3fa0', dot: '#8b5cc7' },
+  访客: { bg: '#ece9e6', fg: '#7a736e', dot: '#b0a49b' },
+  未分组: { bg: '#f0eeec', fg: '#9a938f', dot: '#c3bbb6' },
 };
 
-/** Badge tone class for a derived role. */
-export function roleBadgeClass(role: string): string {
-  if (role === '牧师') return 'b-brand';
-  if (role === '小组长' || role === '副组长' || role === '实习组长') return 'b-accent';
-  return 'b-gray';
+/** Inline background/color for a role badge (design roleTag). */
+export function roleTagStyle(role: string): { background: string; color: string } {
+  const t = ROLE_TAG[role] ?? ROLE_TAG['未分组'];
+  return { background: t.bg, color: t.fg };
+}
+
+/** Dot colour for a role (design roleDot) — also used by the 身份分布 chart. */
+export function roleDot(role: string): string {
+  return (ROLE_TAG[role] ?? ROLE_TAG['未分组']).dot;
 }
 
 export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
@@ -160,17 +168,9 @@ export const DONATION_METHOD_OPTIONS = [
 
 export const TRAINING_CATEGORIES = ['门徒', '栽培', '事奉'];
 
-export function categoryBadgeClass(cat: string | null): string {
-  switch (cat) {
-    case '门徒':
-      return 'b-brand';
-    case '栽培':
-      return 'b-good';
-    case '事奉':
-      return 'b-warn';
-    default:
-      return 'b-accent';
-  }
+/** Training-category tag — the design uses the accent tone for all categories. */
+export function categoryBadgeClass(_cat: string | null): string {
+  return 'b-accent';
 }
 
 export const ENROLLMENT_STATUS_LABELS: Record<string, string> = {

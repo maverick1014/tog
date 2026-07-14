@@ -7,7 +7,7 @@ import {
   useContext,
   useState,
 } from 'react';
-import { initialOf } from '@/lib/labels';
+import { initialOf, roleDot, roleTagStyle } from '@/lib/labels';
 
 /* -------------------------------------------------------------------------
  * State helpers
@@ -53,6 +53,16 @@ export function Badge({
     <span className={`badge ${tone}`}>
       {dot && <i className="dot" style={{ background: dot }} />}
       {children}
+    </span>
+  );
+}
+
+/** Derived-identity badge using the design's per-role tag palette + dot. */
+export function RoleBadge({ role }: { role: string }) {
+  return (
+    <span className="badge" style={roleTagStyle(role)}>
+      <i className="dot" style={{ background: roleDot(role) }} />
+      {role}
     </span>
   );
 }

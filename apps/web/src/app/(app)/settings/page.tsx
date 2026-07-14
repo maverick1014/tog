@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Field, Loading, Modal, Switch, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, RoleBadge, Switch, useToast } from '@/components/ui';
 import { AccountRow, MemberRow } from '@/lib/types';
 import {
   ACCOUNT_ROLE_OPTIONS,
@@ -15,8 +15,6 @@ import {
   accountStatusLabel,
   formatDateTime,
   memberRoleZh,
-  ROLE_DOT,
-  roleBadgeClass,
 } from '@/lib/labels';
 import { AccountRole, AccountStatus, ACCOUNT_ROLE_LABELS } from '@tog/shared';
 
@@ -86,15 +84,10 @@ export default function SettingsPage() {
                 return (
                   <tr key={u.id} className="row-click" onClick={() => setDetailId(u.id)}>
                     <td>
-                      <div className="name-cell">
-                        <Avatar name={u.member?.full_name} />
-                        <strong>{u.member?.full_name ?? '—'}</strong>
-                      </div>
+                      <strong>{u.member?.full_name ?? '—'}</strong>
                     </td>
                     <td>
-                      <span className={`badge ${roleBadgeClass(role)}`}>
-                        <i className="dot" style={{ background: ROLE_DOT[role] }} /> {role}
-                      </span>
+                      <RoleBadge role={role} />
                     </td>
                     <td><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>
                     <td className="muted">{u.email}</td>
@@ -197,9 +190,7 @@ function AccountDetail({
             <div className="flex items-center gap-10 flex-wrap">
               <h2 style={{ margin: 0, fontSize: 20 }} className="serif">{account.member?.full_name}</h2>
               <span className={`badge ${accountRoleClass(role)}`}>{ACCOUNT_ROLE_ZH[role]}</span>
-              <span className={`badge ${roleBadgeClass(memberRole)}`}>
-                <i className="dot" style={{ background: ROLE_DOT[memberRole] }} /> {memberRole}
-              </span>
+              <RoleBadge role={memberRole} />
             </div>
             <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>账户已关联成员档案 · {account.email}</div>
           </div>

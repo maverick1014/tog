@@ -5,17 +5,14 @@ import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, RoleBadge, useToast } from '@/components/ui';
 import { MemberRow } from '@/lib/types';
 import {
   formatDate,
-  initialOf,
   memberRoleZh,
   memberStatusClass,
   memberStatusLabel,
-  ROLE_DOT,
   ROLE_ORDER,
-  roleBadgeClass,
 } from '@/lib/labels';
 import { ChurchRole, MemberStatus } from '@tog/shared';
 
@@ -111,15 +108,10 @@ export default function MembersPage() {
                 return (
                   <tr key={m.id} className="row-click" onClick={() => router.push(`/members/${m.id}`)}>
                     <td>
-                      <div className="name-cell">
-                        <Avatar name={m.full_name} />
-                        <strong>{m.full_name}</strong>
-                      </div>
+                      <strong>{m.full_name}</strong>
                     </td>
                     <td>
-                      <span className={`badge ${roleBadgeClass(role)}`}>
-                        <i className="dot" style={{ background: ROLE_DOT[role] }} /> {role}
-                      </span>
+                      <RoleBadge role={role} />
                     </td>
                     <td className="muted">{m.group?.name ?? '未分组'}</td>
                     <td className="muted tnum">{m.phone ?? '—'}</td>

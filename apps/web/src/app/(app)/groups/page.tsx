@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
 import { GroupDetail, GroupRow, MemberRow } from '@/lib/types';
 import { positionZh } from '@/lib/labels';
 import { canPromoteToLeadership, GroupPosition, LEADERSHIP_POSITIONS } from '@tog/shared';
@@ -281,10 +281,7 @@ function GroupPanel({
                   return (
                     <tr key={m.id}>
                       <td>
-                        <div className="name-cell">
-                          <Avatar name={m.full_name} />
-                          <strong>{m.full_name}</strong>
-                        </div>
+                        <strong>{m.full_name}</strong>
                       </td>
                       <td>
                         <select

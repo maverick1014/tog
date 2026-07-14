@@ -7,7 +7,13 @@ import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
 import { MemberRow, OverviewRow, PairRow, ProgramRow } from '@/lib/types';
-import { memberRoleZh, PAIR_STATUS_LABELS, pairStatusClass, ROLE_DOT } from '@/lib/labels';
+import {
+  memberRoleZh,
+  PAIR_STATUS_LABELS,
+  pairStatusClass,
+  roleDot,
+  roleTagStyle,
+} from '@/lib/labels';
 import { PairStatus } from '@tog/shared';
 
 type Filter = 'active' | 'done' | 'pending';
@@ -84,11 +90,9 @@ export default function DiscipleshipPage() {
     pending: nodes.filter((n) => classify(n) === 'pending').length,
   };
 
-  const filtered = nodes.filter((n) => classify(n) === filter);
-  const maxDepth = Math.max(0, ...filtered.map((n) => n.depth));
-  const generations = Array.from({ length: maxDepth + 1 }, (_, d) =>
-    filtered.filter((n) => n.depth === d),
-  );
+  const forest = useMemo(() => buildForest(nodes), [nodes]);
+  const doneList = nodes.filter((n) => classify(n) === 'done');
+  const pendingList = nodes.filter((n) => classify(n) === 'pending');
 
   const copyLink = (token: string) => {
     const link = `${window.location.origin}/d/${token}`;
@@ -128,45 +132,66 @@ export default function DiscipleshipPage() {
           </div>
         </div>
 
-        {filtered.length === 0 ? (
-          <div className="empty">目前没有符合条件的对子。点右上角「＋ 新增对子」开始接棒。</div>
-        ) : (
-          <div className="table-wrap">
-            <div className="flex gap-12" style={{ minWidth: 'min-content', alignItems: 'flex-start', paddingBottom: 4 }}>
-              {generations.map((gen, d) => (
-                <div key={d} style={{ minWidth: 190 }}>
-                  <div className="muted" style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 8, letterSpacing: 1 }}>
-                    第 {d + 1} 棒
+        {filter === 'active' &&
+          (forest.length === 0 ? (
+            <div className="empty">目前没有进行中的对子。点右上角「＋ 新增对子」开始接棒。</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+              {forest.map((tree, ti) => (
+                <div
+                  key={ti}
+                  style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-2)', padding: '12px 14px' }}
+                >
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                    <strong className="serif" style={{ fontSize: 14, color: 'var(--ink)' }}>{tree.rootName}</strong>
+                    {' · '}{tree.rootRole} · 起点
                   </div>
-                  <div className="flex" style={{ flexDirection: 'column', gap: 10 }}>
-                    {gen.map((n) => {
-                      const role = n.pair.trainee ? memberRoleZh(n.pair.trainee) : '';
-                      return (
+                  <div className="table-wrap">
+                    <div style={{ position: 'relative', width: tree.width, height: tree.height, minWidth: '100%' }}>
+                      <svg width={tree.width} height={tree.height} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+                        <path d={tree.path} fill="none" stroke="var(--border)" strokeWidth={1.5} />
+                      </svg>
+                      {tree.nodes.map((tn) => (
                         <div
-                          key={n.pair.id}
-                          className="card"
-                          style={{ padding: '9px 12px', cursor: 'pointer', boxShadow: 'var(--shadow)' }}
-                          onClick={() => setPopup(n)}
+                          key={tn.id}
+                          onClick={tn.node ? () => setPopup(tn.node!) : undefined}
+                          style={{
+                            position: 'absolute',
+                            left: tn.left,
+                            top: tn.top,
+                            width: 152,
+                            border: '1px solid var(--border)',
+                            borderRadius: 10,
+                            background: 'var(--surface)',
+                            padding: '9px 12px',
+                            cursor: tn.node ? 'pointer' : 'default',
+                            boxShadow: 'var(--shadow)',
+                          }}
                         >
                           <div className="flex-between gap-6">
-                            <strong className="serif" style={{ fontSize: 13.5 }}>{n.pair.trainee?.full_name}</strong>
-                            <span className="dot" style={{ background: ROLE_DOT[role] ?? 'var(--faint)' }} />
+                            <strong className="serif" style={{ fontSize: 13.5 }}>{tn.name}</strong>
+                            <span className="dot" style={{ background: roleDot(tn.role) }} />
                           </div>
-                          <span className="badge b-accent" style={{ fontSize: 10.5, marginTop: 3 }}>{role}</span>
-                          <div className="flex items-center gap-6" style={{ marginTop: 7 }}>
-                            <div className="bar thin"><span style={{ width: `${n.pct}%` }} /></div>
-                            <span className="faint" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{n.days}/{n.total}</span>
-                          </div>
-                          <div className="faint" style={{ fontSize: 10.5, marginTop: 4 }}>由 {n.pair.mentor?.full_name} 带领</div>
+                          <span className="badge" style={{ ...roleTagStyle(tn.role), fontSize: 10.5, marginTop: 3 }}>{tn.role}</span>
+                          {tn.node ? (
+                            <div className="flex items-center gap-6" style={{ marginTop: 7 }}>
+                              <div className="bar thin"><span style={{ width: `${tn.node.pct}%` }} /></div>
+                              <span className="faint" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{tn.node.days}/{tn.node.total}</span>
+                            </div>
+                          ) : (
+                            <div className="faint" style={{ fontSize: 10, marginTop: 7 }}>牧者 · 起点</div>
+                          )}
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ))}
+
+        {filter === 'done' && <DiscList list={doneList} kind="done" onOpen={setPopup} />}
+        {filter === 'pending' && <DiscList list={pendingList} kind="pending" onOpen={setPopup} />}
       </div>
 
       {/* Pastor overview */}
@@ -235,6 +260,165 @@ export default function DiscipleshipPage() {
         />
       )}
     </>
+  );
+}
+
+/* ---- Cascade forest (generational tree with SVG connectors) ------------- */
+interface TreeNode {
+  id: string;
+  name: string;
+  role: string;
+  isRoot: boolean;
+  node?: Node;
+  left: number;
+  top: number;
+}
+interface Tree {
+  rootName: string;
+  rootRole: string;
+  width: number;
+  height: number;
+  nodes: TreeNode[];
+  path: string;
+}
+
+const NODEW = 152;
+const NODEH = 66;
+const GAPX = 56;
+const ROWH = 88;
+
+function buildForest(nodes: Node[]): Tree[] {
+  const kids = new Map<string, { id: string; node: Node }[]>();
+  const info = new Map<string, { name: string; role: string }>();
+  const asTrainee = new Set<string>();
+  for (const n of nodes) {
+    const m = n.pair.mentor;
+    const t = n.pair.trainee;
+    if (!m || !t) continue;
+    info.set(m.id, { name: m.full_name, role: memberRoleZh(m) });
+    info.set(t.id, { name: t.full_name, role: memberRoleZh(t) });
+    const arr = kids.get(m.id) ?? [];
+    arr.push({ id: t.id, node: n });
+    kids.set(m.id, arr);
+    asTrainee.add(t.id);
+  }
+  const nodeByTrainee = new Map<string, Node>();
+  for (const arr of kids.values()) for (const c of arr) nodeByTrainee.set(c.id, c.node);
+  const roots = [...kids.keys()].filter((id) => !asTrainee.has(id));
+
+  const trees: Tree[] = [];
+  for (const rootId of roots) {
+    const pos = new Map<string, { col: number; row: number }>();
+    let rowc = 0;
+    let maxCol = 0;
+    const layout = (id: string, depth: number, seen: Set<string>): number => {
+      if (seen.has(id)) return rowc++;
+      seen.add(id);
+      maxCol = Math.max(maxCol, depth);
+      const ch = kids.get(id) ?? [];
+      let row: number;
+      if (!ch.length) row = rowc++;
+      else {
+        const rs = ch.map((c) => layout(c.id, depth + 1, seen));
+        row = (rs[0] + rs[rs.length - 1]) / 2;
+      }
+      pos.set(id, { col: depth, row });
+      return row;
+    };
+    layout(rootId, 0, new Set());
+
+    const maxRow = Math.max(0, ...[...pos.values()].map((p) => p.row));
+    const width = (maxCol + 1) * NODEW + maxCol * GAPX;
+    const height = maxRow * ROWH + NODEH;
+    const treeNodes: TreeNode[] = [...pos.entries()].map(([id, p]) => ({
+      id,
+      name: info.get(id)?.name ?? '',
+      role: info.get(id)?.role ?? '未分组',
+      isRoot: id === rootId,
+      node: nodeByTrainee.get(id),
+      left: p.col * (NODEW + GAPX),
+      top: p.row * ROWH,
+    }));
+
+    let path = '';
+    for (const [pid, arr] of kids.entries()) {
+      const pp = pos.get(pid);
+      if (!pp) continue;
+      for (const c of arr) {
+        const cp = pos.get(c.id);
+        if (!cp) continue;
+        const sx = pp.col * (NODEW + GAPX) + NODEW;
+        const sy = pp.row * ROWH + NODEH / 2;
+        const ex = cp.col * (NODEW + GAPX);
+        const ey = cp.row * ROWH + NODEH / 2;
+        const mx = (sx + ex) / 2;
+        path += `M${sx} ${sy} C ${mx} ${sy}, ${mx} ${ey}, ${ex} ${ey} `;
+      }
+    }
+    trees.push({
+      rootName: info.get(rootId)?.name ?? '',
+      rootRole: info.get(rootId)?.role ?? '',
+      width,
+      height,
+      nodes: treeNodes,
+      path,
+    });
+  }
+  return trees;
+}
+
+function DiscList({
+  list,
+  kind,
+  onOpen,
+}: {
+  list: Node[];
+  kind: 'done' | 'pending';
+  onOpen: (n: Node) => void;
+}) {
+  if (list.length === 0) {
+    return (
+      <div className="empty" style={{ marginTop: 16 }}>
+        {kind === 'done' ? '尚无出师者。' : '没有待开始的对子。'}
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 16 }}>
+      {list.map((n) => {
+        const role = n.pair.trainee ? memberRoleZh(n.pair.trainee) : '未分组';
+        return (
+          <div
+            key={n.pair.id}
+            onClick={() => onOpen(n)}
+            className="flex items-center gap-12"
+            style={{ padding: '11px 4px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+          >
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div className="flex items-center gap-8 flex-wrap">
+                <strong style={{ fontSize: 13.5 }}>{n.pair.trainee?.full_name}</strong>
+                <span className="badge" style={{ ...roleTagStyle(role), fontSize: 10.5 }}>{role}</span>
+              </div>
+              <div className="faint" style={{ fontSize: 11.5, marginTop: 1 }}>
+                {kind === 'done'
+                  ? `曾由 ${n.pair.mentor?.full_name} 带领`
+                  : `由 ${n.pair.mentor?.full_name} 带领 · 尚未开始`}
+              </div>
+            </div>
+            <span
+              className="badge"
+              style={
+                kind === 'done'
+                  ? { background: 'var(--good-soft)', color: 'var(--good)' }
+                  : { background: 'var(--surface-2)', color: 'var(--faint)', border: '1px solid var(--border)' }
+              }
+            >
+              {kind === 'done' ? `已出师 ${n.days}/${n.total}` : `待开始 ${n.days}/${n.total}`}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

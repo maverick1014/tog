@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useFetch } from '@/lib/hooks';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Loading, ProgressBar } from '@/components/ui';
+import { Avatar, ErrorBanner, Loading, ProgressBar, RoleBadge } from '@/components/ui';
 import { EnrollmentRow, MemberRow, PairRow } from '@/lib/types';
 import {
   categoryBadgeClass,
@@ -13,8 +13,6 @@ import {
   GENDER_LABELS,
   memberRoleZh,
   memberStatusLabel,
-  ROLE_DOT,
-  roleBadgeClass,
 } from '@/lib/labels';
 
 export default function MemberDetailPage() {
@@ -61,9 +59,7 @@ export default function MemberDetailPage() {
             <div>
               <div className="flex items-center gap-10 flex-wrap">
                 <h2 style={{ margin: 0, fontSize: 22 }} className="serif">{m.full_name}</h2>
-                <span className={`badge ${roleBadgeClass(role)}`}>
-                  <i className="dot" style={{ background: ROLE_DOT[role] }} /> {role}
-                </span>
+                <RoleBadge role={role} />
               </div>
               <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
                 {m.chinese_name ? `${m.chinese_name} · ` : ''}

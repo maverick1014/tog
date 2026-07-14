@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
 import { MemberRow, NamelistResponse, TrainingDetail } from '@/lib/types';
 import {
   categoryBadgeClass,
@@ -187,10 +187,7 @@ export default function TrainingDetailPage() {
               {(nl?.rows ?? []).map((r) => (
                 <tr key={r.member.id}>
                   <td>
-                    <div className="name-cell">
-                      <Avatar name={r.member.full_name} />
-                      <strong>{r.member.full_name}</strong>
-                    </div>
+                    <strong>{r.member.full_name}</strong>
                   </td>
                   <td className="muted">{memberRoleZh(r.member)}</td>
                   {r.attendance.map((a) => (

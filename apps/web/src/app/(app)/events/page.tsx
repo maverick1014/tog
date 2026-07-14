@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
 import { EventDetail, EventRow, MemberRow } from '@/lib/types';
 import {
   ATTENDANCE_LABELS,
@@ -163,10 +163,7 @@ function AttendancePanel({
         const cur = marks[m.id];
         return (
           <div key={m.id} className="flex-between" style={{ padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-            <div className="name-cell">
-              <Avatar name={m.full_name} />
-              <strong>{m.full_name}</strong>
-            </div>
+            <strong>{m.full_name}</strong>
             <div className="seg">
               <button
                 className={cur === AttendanceStatus.Present ? 'on-good' : ''}

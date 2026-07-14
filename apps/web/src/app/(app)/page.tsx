@@ -16,7 +16,7 @@ import {
   formatDateTime,
   formatMoneyShort,
   memberRoleZh,
-  ROLE_DOT,
+  roleDot,
   ROLE_ORDER,
 } from '@/lib/labels';
 import { MemberStatus } from '@tog/shared';
@@ -96,7 +96,7 @@ export default function DashboardPage() {
       label: r,
       count: counts[r],
       width: `${(counts[r] / max) * 100}%`,
-      color: ROLE_DOT[r],
+      color: roleDot(r),
     }));
   }, [memberList]);
 
