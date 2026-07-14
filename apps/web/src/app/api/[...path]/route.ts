@@ -71,10 +71,45 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
 
   // ---- Groups ---------------------------------------------------------------
   if (r0 === 'groups') {
-    if (!r1) {
+    // /groups/meetings/:meetingId ...
+    if (r1 === 'meetings' && r2) {
+      if (r3 === 'attendance' && method === 'POST') {
+        const dto = await body();
+        const records = (dto.records as Array<Record<string, unknown>>).map((r) => ({
+          meeting_id: r2,
+          member_id: r.member_id,
+          status: r.status ?? 'present',
+        }));
+        return json(
+          unwrap(
+            await db
+              .from('group_attendance')
+              .upsert(records, { onConflict: 'meeting_id,member_id' })
+              .select(),
+          ),
+        );
+      }
+      if (!r3 && method === 'DELETE') {
+        unwrap(await db.from('group_meetings').delete().eq('id', r2).select().single());
+        return json({ id: r2 });
+      }
+    } else if (!r1) {
       if (method === 'GET') return json(unwrap(await db.from('groups').select('*').order('name')));
       if (method === 'POST')
         return json(unwrap(await db.from('groups').insert(await body()).select().single()));
+    } else if (r2 === 'attendance' && method === 'GET') {
+      return json(await groupAttendance(db, r1));
+    } else if (r2 === 'meetings' && method === 'POST') {
+      const dto = await body();
+      return json(
+        unwrap(
+          await db
+            .from('group_meetings')
+            .insert({ group_id: r1, meeting_date: dto.meeting_date, note: dto.note ?? null })
+            .select()
+            .single(),
+        ),
+      );
     } else if (!r2) {
       if (method === 'GET') {
         const group = unwrap<Record<string, unknown>>(await db.from('groups').select('*').eq('id', r1).single());
@@ -420,6 +455,46 @@ async function upsertProgress(
       .select()
       .single(),
   );
+}
+
+async function groupAttendance(db: ReturnType<typeof getDb>, groupId: string) {
+  const meetings = unwrap(
+    await db
+      .from('group_meetings')
+      .select('id, meeting_date, note')
+      .eq('group_id', groupId)
+      .order('meeting_date'),
+  ) as Array<{ id: string; meeting_date: string; note: string | null }>;
+
+  const members = unwrap(
+    await db
+      .from('members')
+      .select('id, full_name, church_role, group_position')
+      .eq('group_id', groupId)
+      .order('full_name'),
+  ) as Array<{ id: string; full_name: string }>;
+
+  const meetingIds = meetings.map((m) => m.id);
+  const att = meetingIds.length
+    ? (unwrap(
+        await db
+          .from('group_attendance')
+          .select('meeting_id, member_id, status')
+          .in('meeting_id', meetingIds),
+      ) as Array<{ meeting_id: string; member_id: string; status: string }>)
+    : [];
+
+  const map = new Map<string, string>();
+  for (const a of att) map.set(`${a.meeting_id}:${a.member_id}`, a.status);
+
+  const rows = members.map((m) => ({
+    member: m,
+    cells: meetings.map((mt) => ({
+      meeting_id: mt.id,
+      status: map.get(`${mt.id}:${m.id}`) ?? null,
+    })),
+  }));
+  return { meetings, rows };
 }
 
 async function namelist(db: ReturnType<typeof getDb>, trainingId: string) {

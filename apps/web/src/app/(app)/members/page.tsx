@@ -28,7 +28,7 @@ export default function MembersPage() {
 
   usePageChrome({
     title: '成员目录',
-    subtitle: '身份为推导（只读），在「小组管理」逐人设定',
+    subtitle: '身份只读，在「小组管理」逐人设定',
     action: (
       <button className="btn" onClick={() => setAddOpen(true)}>
         ＋ 新增成员
@@ -118,7 +118,7 @@ export default function MembersPage() {
             <thead>
               <tr>
                 <th>成员</th>
-                <th>身份 <span style={{ fontWeight: 400 }}>（推导）</span></th>
+                <th>身份</th>
                 <th>所属小组</th>
                 <th>联系方式</th>
                 <th>状态</th>
@@ -164,7 +164,7 @@ export default function MembersPage() {
       </div>
 
       <div className="hint mt-14">
-        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训对子。身份为推导，只读；在「小组管理」逐人设定。
+        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训对子。身份只读；在「小组管理」逐人设定。
       </div>
 
       {addOpen && (

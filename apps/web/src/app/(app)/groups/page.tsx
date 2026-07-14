@@ -5,9 +5,15 @@ import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
-import { GroupDetail, GroupRow, MemberRow } from '@/lib/types';
-import { positionZh } from '@/lib/labels';
-import { canPromoteToLeadership, GroupPosition, LEADERSHIP_POSITIONS } from '@tog/shared';
+import { exportMatrix } from '@/lib/export';
+import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
+import { ATTENDANCE_LABELS, formatDate, positionZh } from '@/lib/labels';
+import {
+  AttendanceStatus,
+  canPromoteToLeadership,
+  GroupPosition,
+  LEADERSHIP_POSITIONS,
+} from '@tog/shared';
 
 const POSITION_OPTIONS: GroupPosition[] = [
   GroupPosition.Leader,
@@ -234,7 +240,7 @@ function GroupPanel({
 
           <div className="flex-between" style={{ margin: '16px 0 4px' }}>
             <div className="section-label">
-              铁三角 <span style={{ fontWeight: 400, fontSize: 12 }} className="muted">· 带领团队（推导）</span>
+              铁三角 <span style={{ fontWeight: 400, fontSize: 12 }} className="muted">· 带领团队</span>
             </div>
             <span className="faint" style={{ fontSize: 11.5 }}>{leadFilled} / 3 就位</span>
           </div>
@@ -322,7 +328,156 @@ function GroupPanel({
           </div>
         </div>
       </div>
+
+      <WeeklyAttendance groupId={group.id} />
     </>
+  );
+}
+
+function WeeklyAttendance({ groupId }: { groupId: string }) {
+  const toast = useToast();
+  const { data, loading, reload } = useFetch<GroupAttendanceResponse>(
+    `/groups/${groupId}/attendance`,
+  );
+  const [adding, setAdding] = useState(false);
+  const [date, setDate] = useState('');
+
+  const nextStatus = (cur: AttendanceStatus | null): AttendanceStatus =>
+    cur === AttendanceStatus.Present
+      ? AttendanceStatus.Excused
+      : cur === AttendanceStatus.Excused
+        ? AttendanceStatus.Absent
+        : AttendanceStatus.Present;
+
+  const cycle = async (meetingId: string, memberId: string, cur: AttendanceStatus | null) => {
+    await api.post(`/groups/meetings/${meetingId}/attendance`, {
+      records: [{ member_id: memberId, status: nextStatus(cur) }],
+    });
+    reload();
+  };
+
+  const addWeek = async () => {
+    if (!date) return;
+    try {
+      await api.post(`/groups/${groupId}/meetings`, { meeting_date: date });
+      setDate('');
+      setAdding(false);
+      reload();
+      toast('已添加本周');
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  const delWeek = async (meetingId: string) => {
+    if (!confirm('删除本周聚会及其出席记录？')) return;
+    await api.delete(`/groups/meetings/${meetingId}`);
+    reload();
+  };
+
+  const cellOf = (s: AttendanceStatus | null) => {
+    if (s === AttendanceStatus.Present) return { label: '出', bg: 'var(--good-soft)', fg: 'var(--good)' };
+    if (s === AttendanceStatus.Excused) return { label: '请', bg: 'var(--warn-soft)', fg: 'var(--warn)' };
+    if (s === AttendanceStatus.Absent) return { label: '缺', bg: 'var(--crit-soft)', fg: 'var(--crit)' };
+    return { label: '·', bg: 'var(--surface-2)', fg: 'var(--faint)' };
+  };
+
+  const exportGrid = () => {
+    if (!data) return;
+    const headers = ['成员', ...data.meetings.map((m) => formatDate(m.meeting_date)), '出席次数'];
+    const matrix = data.rows.map((r) => [
+      r.member.full_name,
+      ...r.cells.map((c) => (c.status ? ATTENDANCE_LABELS[c.status] : '')),
+      r.cells.filter((c) => c.status === AttendanceStatus.Present).length,
+    ]);
+    exportMatrix('小组每周出席', '出席', headers, matrix);
+  };
+
+  return (
+    <div className="card mt-16">
+      <div className="card-head">
+        <div>
+          <h3>每周出席</h3>
+          <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+            点击方格切换 出席 / 请假 / 缺席
+          </div>
+        </div>
+        <div className="flex gap-8">
+          <button className="btn ghost sm" onClick={exportGrid} disabled={!data || data.meetings.length === 0}>
+            ⬇ 导出
+          </button>
+          <button className="btn sm" onClick={() => setAdding((a) => !a)}>＋ 添加本周</button>
+        </div>
+      </div>
+
+      {adding && (
+        <div className="flex gap-8 mb-14" style={{ maxWidth: 320 }}>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <button className="btn accent sm" onClick={addWeek}>添加</button>
+        </div>
+      )}
+
+      {loading ? (
+        <Loading />
+      ) : !data || data.meetings.length === 0 ? (
+        <div className="empty">尚无每周聚会记录，点「＋ 添加本周」开始。</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>成员</th>
+                {data.meetings.map((m) => (
+                  <th key={m.id} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    {formatDate(m.meeting_date)}
+                    <button
+                      onClick={() => delWeek(m.id)}
+                      title="删除本周"
+                      style={{ marginLeft: 6, border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </th>
+                ))}
+                <th style={{ textAlign: 'center' }}>出席</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((r) => (
+                <tr key={r.member.id}>
+                  <td><strong>{r.member.full_name}</strong></td>
+                  {r.cells.map((c) => {
+                    const cell = cellOf(c.status);
+                    return (
+                      <td key={c.meeting_id} style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => cycle(c.meeting_id, r.member.id, c.status)}
+                          style={{
+                            width: 30,
+                            height: 26,
+                            borderRadius: 7,
+                            border: 'none',
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            background: cell.bg,
+                            color: cell.fg,
+                          }}
+                        >
+                          {cell.label}
+                        </button>
+                      </td>
+                    );
+                  })}
+                  <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                    {r.cells.filter((c) => c.status === AttendanceStatus.Present).length}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -47,6 +47,20 @@ export interface GroupDetail extends GroupRow {
   }[];
 }
 
+export interface GroupMeeting {
+  id: string;
+  meeting_date: string;
+  note: string | null;
+}
+
+export interface GroupAttendanceResponse {
+  meetings: GroupMeeting[];
+  rows: {
+    member: { id: string; full_name: string };
+    cells: { meeting_id: string; status: AttendanceStatus | null }[];
+  }[];
+}
+
 export interface EventRow {
   id: string;
   title: string;
