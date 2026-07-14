@@ -1,9 +1,10 @@
-name: E2E (Playwright)
+name: E2E (Playwright browser suite)
 
-# Runs the browser end-to-end suite against a deployed environment.
-# Manual by default (it exercises real CRUD against the target); every write
+# Full browser end-to-end suite. Manual only: it drives a real browser against
+# a deployed target and is intended for a browser-capable runner. Every write
 # flow creates uniquely-named data and deletes it again so the target stays
-# clean. Point it at any deployment with the E2E_BASE_URL input.
+# clean. The fast, always-on end-to-end coverage lives in the API E2E that runs
+# as part of deploy.yml.
 on:
   workflow_dispatch:
     inputs:
@@ -11,11 +12,6 @@ on:
         description: Target base URL
         required: false
         default: https://tog-web.tabernacleofgrace-cn.workers.dev
-  # Temporary while stabilizing the suite in CI (validated cloud-only). Runs on
-  # pushes that touch the e2e files. Remove once the suite is green + merged.
-  push:
-    branches: [claude/design-project-impl-r6iiu8]
-    paths: ['apps/web/e2e/**', 'apps/web/playwright.config.ts', '.github/workflows/e2e.yml']
 
 permissions:
   contents: read
@@ -41,33 +37,9 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
-      - name: Run E2E tests (per file, whole process-group hard-killed)
+      - name: Run E2E tests
         working-directory: apps/web
-        env:
-          # Comma/space list of spec files to run; empty = all. Used to scope
-          # the run while stabilizing the suite.
-          E2E_FILES: ${{ vars.E2E_FILES || 'e2e/01-auth.spec.ts e2e/02-gating.spec.ts' }}
-        run: |
-          set +e
-          files="${E2E_FILES}"
-          [ -z "$files" ] && files=$(ls e2e/*.spec.ts)
-          fail=0
-          for f in $files; do
-            echo ""
-            echo "==================== $f ===================="
-            # Run in a new session; on timeout KILL the ENTIRE process group
-            # (node + browsers) so nothing orphans and the step always advances.
-            setsid bash -c "timeout --signal=KILL 90 npx playwright test '$f' --reporter=list" &
-            gpid=$!
-            wait "$gpid"; code=$?
-            kill -9 -"$gpid" 2>/dev/null
-            pkill -9 -f "headless_shell|chrome-linux|ms-playwright" 2>/dev/null
-            echo "---- $f exit=$code ----"
-            if [ "$code" = "137" ] || [ "$code" = "124" ]; then echo ">>> HUNG (killed after 90s): $f"; fi
-            [ "$code" != "0" ] && fail=1
-          done
-          echo "OVERALL_FAIL=$fail"
-          exit 0
+        run: npx playwright test
       - name: Upload report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4

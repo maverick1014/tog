@@ -61,3 +61,9 @@ jobs:
 
       - name: Post-deploy smoke test
         run: node apps/web/scripts/smoke-test.mjs
+
+      - name: Post-deploy API E2E (all flows + access control)
+        env:
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL || 'john@grace.org' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || 'grace2026' }}
+        run: node apps/web/scripts/api-e2e.mjs

@@ -12,7 +12,8 @@
     "cf:deploy": "opennextjs-cloudflare deploy",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:report": "playwright show-report e2e/.report"
+    "test:e2e:report": "playwright show-report e2e/.report",
+    "test:api-e2e": "node scripts/api-e2e.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
