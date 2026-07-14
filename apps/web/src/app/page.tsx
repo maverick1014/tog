@@ -3,10 +3,15 @@
 import Link from 'next/link';
 import { useFetch } from '@/lib/hooks';
 import { PageHeader, Loading, ErrorBanner } from '@/components/ui';
-import { roleZh, formatDateTime } from '@/lib/labels';
-import { MEMBER_ROLE_ORDER, MemberRole } from '@tog/shared';
+import { memberRoleZh, formatDateTime } from '@/lib/labels';
+import { ChurchRole, DISPLAY_ROLE_ORDER, GroupPosition } from '@tog/shared';
 
-type Member = { id: string; role: string; status: string };
+type Member = {
+  id: string;
+  church_role: ChurchRole;
+  group_position: GroupPosition | null;
+  status: string;
+};
 type Event = { id: string; title: string; starts_at: string; event_type: string };
 type DonationSummary = { total: number; byFund: Record<string, number> };
 
@@ -19,9 +24,9 @@ export default function DashboardPage() {
   const error = members.error || events.error || donations.error;
 
   const memberList = members.data ?? [];
-  const byRole = MEMBER_ROLE_ORDER.map((role) => ({
-    role,
-    count: memberList.filter((m) => m.role === role).length,
+  const byRole = DISPLAY_ROLE_ORDER.map((label) => ({
+    role: label,
+    count: memberList.filter((m) => memberRoleZh(m) === label).length,
   }));
   const activeCount = memberList.filter((m) => m.status === 'active').length;
 
@@ -70,7 +75,7 @@ export default function DashboardPage() {
                   <tbody>
                     {byRole.map(({ role, count }) => (
                       <tr key={role}>
-                        <td>{roleZh(role as MemberRole)}</td>
+                        <td>{role}</td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>
                           {count}
                         </td>

@@ -41,7 +41,7 @@ export class TrainingsService {
     const enrollments = unwrap(
       await this.supabase.db
         .from('training_enrollments')
-        .select('*, member:members(id,full_name,role)')
+        .select('*, member:members(id,full_name,church_role,group_position)')
         .eq('training_id', id)
         .order('enrolled_at'),
     );
@@ -120,7 +120,7 @@ export class TrainingsService {
         member_id: dto.member_id,
         status: dto.status ?? EnrollmentStatus.Pending,
       })
-      .select('*, member:members(id,full_name,role)')
+      .select('*, member:members(id,full_name,church_role,group_position)')
       .single()
       .then(unwrap);
   }
@@ -135,7 +135,7 @@ export class TrainingsService {
       .from('training_enrollments')
       .update(patch)
       .eq('id', enrollmentId)
-      .select('*, member:members(id,full_name,role)')
+      .select('*, member:members(id,full_name,church_role,group_position)')
       .single()
       .then(unwrap);
   }
@@ -161,7 +161,7 @@ export class TrainingsService {
     const enrollments = unwrap(
       await this.supabase.db
         .from('training_enrollments')
-        .select('id, member:members(id,full_name,role)')
+        .select('id, member:members(id,full_name,church_role,group_position)')
         .eq('training_id', trainingId)
         .in('status', ['approved', 'in_progress', 'completed'])
         .order('id'),

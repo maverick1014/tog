@@ -38,7 +38,7 @@ class HouseholdsService {
     const members = unwrap(
       await this.supabase.db
         .from('members')
-        .select('id,full_name,role')
+        .select('id,full_name,group_position')
         .eq('household_id', id),
     );
     return { ...(household as object), members };

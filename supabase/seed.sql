@@ -8,21 +8,16 @@ insert into groups (id, name, description) values
   ('11111111-1111-1111-1111-111111111111', '恩典小组 (Grace Group)', 'Sunday cell group'),
   ('22222222-2222-2222-2222-222222222222', '青年小组 (Youth Group)', 'Youth fellowship');
 
--- Members with the full role hierarchy
-insert into members (id, full_name, chinese_name, email, phone, role, status, group_id, joined_at) values
-  ('a0000000-0000-0000-0000-000000000001', 'John Tan',   '陈约翰', 'john@example.com',  '0121000001', 'pastor',          'active', null, '2018-01-05'),
-  ('a0000000-0000-0000-0000-000000000002', 'Mary Lim',   '林玛丽', 'mary@example.com',  '0121000002', 'group_leader',    'active', '11111111-1111-1111-1111-111111111111', '2019-03-10'),
-  ('a0000000-0000-0000-0000-000000000003', 'Peter Wong', '黄彼得', 'peter@example.com', '0121000003', 'assistant_leader','active', '11111111-1111-1111-1111-111111111111', '2020-06-01'),
-  ('a0000000-0000-0000-0000-000000000004', 'Grace Ng',   '吴恩慈', 'grace@example.com', '0121000004', 'intern_leader',   'active', '22222222-2222-2222-2222-222222222222', '2021-02-14'),
-  ('a0000000-0000-0000-0000-000000000005', 'Daniel Ong', '王但以理','daniel@example.com','0121000005', 'core_member',     'active', '22222222-2222-2222-2222-222222222222', '2021-09-20'),
-  ('a0000000-0000-0000-0000-000000000006', 'Ruth Chin',  '陈路得', 'ruth@example.com',  '0121000006', 'regular_member',  'active', '11111111-1111-1111-1111-111111111111', '2022-11-11'),
-  ('a0000000-0000-0000-0000-000000000007', 'Samuel Lee', '李撒母耳','samuel@example.com','0121000007', 'new_member',      'active', '22222222-2222-2222-2222-222222222222', '2024-05-01');
-
--- Assign group leaders
-update groups set leader_id = 'a0000000-0000-0000-0000-000000000002'
-  where id = '11111111-1111-1111-1111-111111111111';
-update groups set leader_id = 'a0000000-0000-0000-0000-000000000004'
-  where id = '22222222-2222-2222-2222-222222222222';
+-- Members. church_role is 'member' for everyone except the pastor; the seven
+-- ranks come from group_position, allocated per member within their group.
+insert into members (id, full_name, chinese_name, email, phone, church_role, group_id, group_position, joined_at) values
+  ('a0000000-0000-0000-0000-000000000001', 'John Tan',   '陈约翰', 'john@example.com',  '0121000001', 'pastor', null, null,                                                                 '2018-01-05'),
+  ('a0000000-0000-0000-0000-000000000002', 'Mary Lim',   '林玛丽', 'mary@example.com',  '0121000002', 'member', '11111111-1111-1111-1111-111111111111', 'leader',           '2019-03-10'),
+  ('a0000000-0000-0000-0000-000000000003', 'Peter Wong', '黄彼得', 'peter@example.com', '0121000003', 'member', '11111111-1111-1111-1111-111111111111', 'assistant_leader', '2020-06-01'),
+  ('a0000000-0000-0000-0000-000000000004', 'Grace Ng',   '吴恩慈', 'grace@example.com', '0121000004', 'member', '22222222-2222-2222-2222-222222222222', 'intern_leader',    '2021-02-14'),
+  ('a0000000-0000-0000-0000-000000000005', 'Daniel Ong', '王但以理','daniel@example.com','0121000005', 'member', '22222222-2222-2222-2222-222222222222', 'core_member',      '2021-09-20'),
+  ('a0000000-0000-0000-0000-000000000006', 'Ruth Chin',  '陈路得', 'ruth@example.com',  '0121000006', 'member', '11111111-1111-1111-1111-111111111111', 'core_member',      '2022-11-11'),
+  ('a0000000-0000-0000-0000-000000000007', 'Samuel Lee', '李撒母耳','samuel@example.com','0121000007', 'member', '22222222-2222-2222-2222-222222222222', 'new_member',       '2024-05-01');
 
 -- An event + attendance
 insert into events (id, title, event_type, location, starts_at) values
