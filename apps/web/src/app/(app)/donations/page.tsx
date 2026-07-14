@@ -5,6 +5,7 @@ import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { exportRows } from '@/lib/export';
 import { DonationRow, DonationSummary, MemberRow } from '@/lib/types';
 import {
   DONATION_FUNDS,
@@ -39,6 +40,20 @@ export default function DonationsPage() {
   const byFund = summary.data?.byFund ?? {};
   const list = donations.data ?? [];
 
+  const exportDonations = () => {
+    exportRows(
+      '奉献记录',
+      '奉献',
+      list.map((d) => ({
+        日期: formatDate(d.donated_at),
+        奉献人: d.member?.full_name ?? '（匿名）',
+        类别: d.fund,
+        方式: DONATION_METHOD_LABELS[d.method] ?? d.method,
+        '金额(RM)': Number(d.amount),
+      })),
+    );
+  };
+
   if (donations.loading) return <Loading />;
 
   return (
@@ -57,7 +72,15 @@ export default function DonationsPage() {
         ))}
       </div>
 
-      <div className="card mt-16" style={{ padding: 6 }}>
+      <div className="flex-between mt-16 mb-14">
+        <div className="section-label">
+          奉献记录 <span className="muted" style={{ fontWeight: 400 }}>· 共 {list.length} 笔</span>
+        </div>
+        <button className="btn ghost sm" onClick={exportDonations} disabled={!list.length}>
+          ⬇ 导出 Excel
+        </button>
+      </div>
+      <div className="card" style={{ padding: 6 }}>
         <div className="table-wrap">
           <table>
             <thead>

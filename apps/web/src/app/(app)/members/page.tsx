@@ -6,9 +6,11 @@ import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, RoleBadge, useToast } from '@/components/ui';
+import { exportRows } from '@/lib/export';
 import { MemberRow } from '@/lib/types';
 import {
   formatDate,
+  GENDER_LABELS,
   memberRoleZh,
   memberStatusClass,
   memberStatusLabel,
@@ -56,6 +58,23 @@ export default function MembersPage() {
     });
   }, [members, q, roleFilter]);
 
+  const exportMembers = () => {
+    exportRows(
+      '成员目录',
+      '成员',
+      rows.map((m) => ({
+        姓名: m.full_name,
+        身份: memberRoleZh(m),
+        所属小组: m.group?.name ?? '未分组',
+        邮箱: m.email ?? '',
+        电话: m.phone ?? '',
+        性别: m.gender ? GENDER_LABELS[m.gender] ?? '' : '',
+        状态: memberStatusLabel(m.status),
+        加入日期: formatDate(m.joined_at),
+      })),
+    );
+  };
+
   if (loading) return <Loading />;
 
   return (
@@ -80,12 +99,17 @@ export default function MembersPage() {
             </button>
           ))}
         </div>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="🔍 搜索姓名…"
-          style={{ width: 200 }}
-        />
+        <div className="flex gap-8 items-center">
+          <button className="btn ghost sm" onClick={exportMembers} disabled={rows.length === 0}>
+            ⬇ 导出 Excel
+          </button>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="🔍 搜索姓名…"
+            style={{ width: 200 }}
+          />
+        </div>
       </div>
 
       <div className="card" style={{ padding: 6 }}>

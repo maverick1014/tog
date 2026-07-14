@@ -6,6 +6,7 @@ import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { exportMatrix } from '@/lib/export';
 import { MemberRow, NamelistResponse, TrainingDetail } from '@/lib/types';
 import {
   categoryBadgeClass,
@@ -72,6 +73,23 @@ export default function TrainingDetailPage() {
   };
 
   const nl = namelist.data;
+
+  const exportNamelist = () => {
+    if (!nl) return;
+    const headers = [
+      '报名成员',
+      '身份',
+      ...nl.sessions.map((s) => `第${s.session_number}课 ${s.title ?? ''}`.trim()),
+      '出席场次',
+    ];
+    const matrix = nl.rows.map((r) => [
+      r.member.full_name,
+      memberRoleZh(r.member),
+      ...r.attendance.map((a) => (a.attended ? '出席' : '缺席')),
+      r.attendance.filter((a) => a.attended).length,
+    ]);
+    exportMatrix(`${t.name}_核对名单`, '名单', headers, matrix);
+  };
 
   return (
     <>
@@ -169,6 +187,9 @@ export default function TrainingDetailPage() {
             <h3>核对名单</h3>
             <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>逐场次核对出席，点击方格切换 ✓ · 空 缺席</div>
           </div>
+          <button className="btn accent sm" onClick={exportNamelist} disabled={!nl || nl.rows.length === 0}>
+            ⬇ 导出名单
+          </button>
         </div>
         <div className="table-wrap">
           <table>
