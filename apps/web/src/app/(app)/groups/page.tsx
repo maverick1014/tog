@@ -186,6 +186,14 @@ function GroupPanel({
   };
 
   const removeMember = async (memberId: string) => {
+    const name = groupMembers.find((m) => m.id === memberId)?.full_name ?? '该成员';
+    const ok = await confirm({
+      title: '移出小组',
+      message: `将 ${name} 移出本组？其身份与在组职位会一并清除。`,
+      confirmText: '移出',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.patch(`/members/${memberId}`, { group_id: null, group_position: null });
       onChanged();
