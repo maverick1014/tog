@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
+import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, RoleBadge, useToast } from '@/components/ui';
+import { can } from '@/lib/perms';
 import { exportRows } from '@/lib/export';
 import { MemberRow } from '@/lib/types';
 import {
@@ -21,20 +22,24 @@ import { ChurchRole, MemberStatus } from '@tog/shared';
 export default function MembersPage() {
   const router = useRouter();
   const toast = useToast();
+  const perms = can(useMe().role);
   const { data, loading, error, reload } = useFetch<MemberRow[]>('/members');
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '成员目录',
-    subtitle: '身份只读，在「小组管理」逐人设定',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新增成员
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '成员目录',
+      subtitle: '身份只读，在「小组管理」逐人设定',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新增成员
+        </button>
+      ) : undefined,
+    },
+    [perms.write],
+  );
 
   const members = data ?? [];
 

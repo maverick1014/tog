@@ -4,9 +4,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Field, Loading, Modal, ProgressBar, RoleBadge, useToast } from '@/components/ui';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { Avatar, ErrorBanner, Field, Loading, Modal, ProgressBar, RoleBadge, useConfirm, useToast } from '@/components/ui';
 import { PairProgressModal } from '@/components/PairProgressModal';
+import { can } from '@/lib/perms';
 import { EnrollmentRow, MemberRow, PairRow } from '@/lib/types';
 import { Gender, MemberStatus } from '@tog/shared';
 import {
@@ -27,6 +28,8 @@ export default function MemberDetailPage() {
   const record = useFetch<EnrollmentRow[]>(`/members/${id}/trainings`);
   const allPairs = useFetch<PairRow[]>('/discipleship/pairs');
   const toast = useToast();
+  const confirm = useConfirm();
+  const perms = can(useMe().role);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -92,14 +95,16 @@ export default function MemberDetailPage() {
                 {m.chinese_name ? `${m.chinese_name} · ` : ''}
                 {m.group?.name ?? '未分组'}
               </div>
-              <button
-                className="btn ghost sm"
-                style={{ marginTop: 8 }}
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? '上传中…' : m.avatar_url ? '更换头像' : '上传头像'}
-              </button>
+              {perms.write && (
+                <button
+                  className="btn ghost sm"
+                  style={{ marginTop: 8 }}
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? '上传中…' : m.avatar_url ? '更换头像' : '上传头像'}
+                </button>
+              )}
               <input
                 ref={fileRef}
                 type="file"
@@ -109,7 +114,33 @@ export default function MemberDetailPage() {
               />
             </div>
           </div>
-          <button className="btn" onClick={() => setEditOpen(true)}>编辑资料</button>
+          <div className="flex gap-8">
+            {perms.write && <button className="btn" onClick={() => setEditOpen(true)}>编辑资料</button>}
+            {perms.delete && (
+              <button
+                className="btn ghost"
+                style={{ color: 'var(--crit)', border: '1px solid var(--crit-soft)' }}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: '删除成员',
+                    message: `删除 ${m.full_name} 的成员档案？其培训、配对与出席记录将一并移除，且不可恢复。`,
+                    confirmText: '删除',
+                    danger: true,
+                  });
+                  if (!ok) return;
+                  try {
+                    await api.delete(`/members/${m.id}`);
+                    toast('已删除成员');
+                    router.push('/members');
+                  } catch (e) {
+                    toast((e as Error).message);
+                  }
+                }}
+              >
+                删除
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid g4" style={{ marginTop: 18 }}>

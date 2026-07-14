@@ -52,11 +52,13 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
   if (!isPublicForm) {
     const session = await getSession(req);
     if (!session) throw new HttpError(401, '未登录');
+    // Login accounts (emails, roles, sign-in history) are super_admin-only —
+    // for reads as well as writes (rule G2), so the account list never leaks.
+    if (r0 === 'accounts' && session.role !== 'super_admin')
+      throw new HttpError(403, '仅超级管理员可管理登录账户');
     if (method !== 'GET') {
       // Permission matrix enforcement.
       if (session.role === 'readonly') throw new HttpError(403, '只读账户无法修改');
-      if (r0 === 'accounts' && session.role !== 'super_admin')
-        throw new HttpError(403, '仅超级管理员可管理登录账户');
       if (method === 'DELETE' && !['super_admin', 'admin'].includes(session.role))
         throw new HttpError(403, '当前角色无删除权限');
     }

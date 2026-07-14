@@ -4,9 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
+import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Loading, useConfirm, useToast } from '@/components/ui';
 import { TrainingModal } from '@/components/TrainingModal';
+import { can } from '@/lib/perms';
 import { MemberRow, TrainingRow } from '@/lib/types';
 import { categoryBadgeClass, formatDate } from '@/lib/labels';
 
@@ -14,19 +15,23 @@ export default function TrainingsPage() {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
+  const perms = can(useMe().role);
   const trainings = useFetch<TrainingRow[]>('/trainings');
   const members = useFetch<MemberRow[]>('/members');
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '培训课程',
-    subtitle: '课程目录 · 报名审核 · 核对名单',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新增课程
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '培训课程',
+      subtitle: '课程目录 · 报名审核 · 核对名单',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新增课程
+        </button>
+      ) : undefined,
+    },
+    [perms.write],
+  );
 
   const now = new Date();
   const list = trainings.data ?? [];
@@ -77,8 +82,8 @@ export default function TrainingsPage() {
           <div className="grow" />
           <div className="flex gap-8 mt-14">
             <button className="btn sm grow" onClick={() => router.push(`/trainings/${t.id}`)}>名单</button>
-            <button className="btn ghost sm" onClick={() => router.push(`/trainings/${t.id}`)}>编辑</button>
-            <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => del(t)}>删除</button>
+            {perms.write && <button className="btn ghost sm" onClick={() => router.push(`/trainings/${t.id}`)}>编辑</button>}
+            {perms.delete && <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => del(t)}>删除</button>}
           </div>
         </div>
       ))}

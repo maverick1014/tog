@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
 import { PairProgressModal } from '@/components/PairProgressModal';
+import { can } from '@/lib/perms';
 import { MemberRow, OverviewRow, PairRow, ProgramRow } from '@/lib/types';
 import {
   memberRoleZh,
@@ -29,6 +30,8 @@ interface Node {
 
 export default function DiscipleshipPage() {
   const toast = useToast();
+  const confirm = useConfirm();
+  const perms = can(useMe().role);
   const programs = useFetch<ProgramRow[]>('/discipleship/programs');
   const programId = programs.data?.[0]?.id;
   const pairs = useFetch<PairRow[]>('/discipleship/pairs');
@@ -42,15 +45,36 @@ export default function DiscipleshipPage() {
   const [fullscreen, setFullscreen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '四十天守望',
-    subtitle: '四十天一对一守望 · 世代培育 · 牧者实时总览',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)} disabled={!programId}>
-        ＋ 新增配对
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '四十天守望',
+      subtitle: '四十天一对一守望 · 世代培育 · 牧者实时总览',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)} disabled={!programId}>
+          ＋ 新增配对
+        </button>
+      ) : undefined,
+    },
+    [perms.write, programId],
+  );
+
+  const delPair = async (n: Node) => {
+    const ok = await confirm({
+      title: '删除配对',
+      message: `删除 ${n.pair.trainee?.full_name} ← ${n.pair.mentor?.full_name} 的配对？其守望进度记录将一并移除。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/discipleship/pairs/${n.pair.id}`);
+      pairs.reload();
+      overview.reload();
+      toast('已删除配对');
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
 
   const ovByPair = useMemo(() => {
     const m = new Map<string, OverviewRow>();
@@ -245,7 +269,10 @@ export default function DiscipleshipPage() {
                   <td><span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span></td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn ghost sm" style={{ marginRight: 6 }} onClick={() => setPopup(n)}>进度</button>
-                    <button className="btn ghost sm" style={{ color: 'var(--brand)' }} onClick={() => window.open(`/d/${n.pair.form_token}`, '_blank')}>🔗 表单</button>
+                    <button className="btn ghost sm" style={{ color: 'var(--brand)', marginRight: 6 }} onClick={() => window.open(`/d/${n.pair.form_token}`, '_blank')}>🔗 表单</button>
+                    {perms.delete && (
+                      <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => delPair(n)}>删除</button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -265,16 +292,30 @@ export default function DiscipleshipPage() {
                   <strong>{n.pair.trainee?.full_name}</strong>
                   <span className="faint"> ← {n.pair.mentor?.full_name}</span>
                 </div>
-                <button
-                  className="mtile-cta"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(`/d/${n.pair.form_token}`, '_blank');
-                  }}
-                >
-                  🔗 表单
-                </button>
+                <div className="flex gap-10" style={{ flexShrink: 0 }}>
+                  <button
+                    className="mtile-cta"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`/d/${n.pair.form_token}`, '_blank');
+                    }}
+                  >
+                    🔗 表单
+                  </button>
+                  {perms.delete && (
+                    <button
+                      className="mtile-cta"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--crit)' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        delPair(n);
+                      }}
+                    >
+                      删除
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mtile-line" style={{ marginTop: 9 }}>
                 <div className="bar" style={{ flex: 1 }}><span style={{ width: `${n.pct}%` }} /></div>

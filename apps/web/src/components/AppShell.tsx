@@ -4,11 +4,22 @@ import { createContext, ReactNode, useContext, useEffect, useState } from 'react
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ConfirmProvider, ToastProvider, useConfirm } from './ui';
+import { ChangePasswordModal } from './ChangePasswordModal';
 import { GlobeMark } from './GlobeMark';
 import { initialOf } from '@/lib/labels';
 import { ACCOUNT_ROLE_LABELS, AccountRole } from '@tog/shared';
 
 type Me = { name: string; role: string; member: string | null };
+
+/* -------------------------------------------------------------------------
+ * Current-user context — pages read the session role to gate UI (rule G2).
+ * ---------------------------------------------------------------------- */
+const MeContext = createContext<Me | null>(null);
+
+/** The logged-in account (name, role, member). Only valid inside AppShell. */
+export function useMe(): Me {
+  return useContext(MeContext) ?? { name: '', role: '', member: null };
+}
 
 /* -------------------------------------------------------------------------
  * Page chrome context — pages set the topbar title / subtitle / action.
@@ -27,10 +38,8 @@ export function usePageChrome(chrome: Chrome, deps: unknown[] = []) {
 /* -------------------------------------------------------------------------
  * Navigation model
  * ---------------------------------------------------------------------- */
-const NAV: {
-  section: string;
-  items: { href: string; label: string; icon: string }[];
-}[] = [
+type NavItem = { href: string; label: string; icon: string; role?: AccountRole };
+const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: '概览',
     items: [{ href: '/', label: '仪表盘', icon: '◎' }],
@@ -52,8 +61,9 @@ const NAV: {
     ],
   },
   {
+    // 用户管理 is super_admin-only (matches the API gate on /accounts).
     section: '系统',
-    items: [{ href: '/settings', label: '用户管理', icon: '⚙' }],
+    items: [{ href: '/settings', label: '用户管理', icon: '⚙', role: AccountRole.SuperAdmin }],
   },
 ];
 
@@ -96,6 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
+    <MeContext.Provider value={me}>
     <ConfirmProvider>
     <ToastProvider>
       <ChromeContext.Provider value={setChrome}>
@@ -113,20 +124,24 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
 
-            {NAV.map((group) => (
-              <div key={group.section}>
-                <div className="nav-section">{group.section}</div>
-                {group.items.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`nav-link ${isActive(item.href) ? 'active' : ''}`}
-                  >
-                    <span className="ico">{item.icon}</span> {item.label}
-                  </Link>
-                ))}
-              </div>
-            ))}
+            {NAV.map((group) => {
+              const items = group.items.filter((it) => !it.role || it.role === me.role);
+              if (items.length === 0) return null;
+              return (
+                <div key={group.section}>
+                  <div className="nav-section">{group.section}</div>
+                  {items.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`nav-link ${isActive(item.href) ? 'active' : ''}`}
+                    >
+                      <span className="ico">{item.icon}</span> {item.label}
+                    </Link>
+                  ))}
+                </div>
+              );
+            })}
 
             <div className="grow" />
             <NavUser me={me} />
@@ -162,13 +177,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       </ChromeContext.Provider>
     </ToastProvider>
     </ConfirmProvider>
+    </MeContext.Provider>
   );
 }
 
 function NavUser({ me }: { me: Me }) {
   const confirm = useConfirm();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
 
   const logout = async () => {
+    setMenuOpen(false);
     const ok = await confirm({
       title: '退出登录',
       message: '确定要退出当前账户吗？',
@@ -181,12 +200,23 @@ function NavUser({ me }: { me: Me }) {
   };
 
   return (
-    <div className="nav-user" onClick={logout} title="退出登录" style={{ cursor: 'pointer' }}>
-      <div className="avatar">{initialOf(me.name)}</div>
-      <div className="who">
-        {me.name}
-        <small>{ACCOUNT_ROLE_LABELS[me.role as AccountRole] ?? me.role} · 退出登录</small>
+    <div style={{ position: 'relative' }}>
+      {menuOpen && (
+        <div className="nav-user-menu">
+          <button onClick={() => { setMenuOpen(false); setPwOpen(true); }}>🔑 修改我的密码</button>
+          <button onClick={logout}>↩ 退出登录</button>
+        </div>
+      )}
+      <div className="nav-user" onClick={() => setMenuOpen((o) => !o)} title="账户菜单" style={{ cursor: 'pointer' }}>
+        <div className="avatar">{initialOf(me.name)}</div>
+        <div className="who">
+          {me.name}
+          <small>{ACCOUNT_ROLE_LABELS[me.role as AccountRole] ?? me.role} · 账户菜单</small>
+        </div>
       </div>
+      {pwOpen && (
+        <ChangePasswordModal onClose={() => setPwOpen(false)} onSaved={() => setPwOpen(false)} />
+      )}
     </div>
   );
 }

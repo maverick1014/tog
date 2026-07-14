@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
+import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { can } from '@/lib/perms';
 import { exportMatrix } from '@/lib/export';
 import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
 import { ATTENDANCE_LABELS, positionZh, roleDot, roleTagStyle } from '@/lib/labels';
@@ -26,20 +27,24 @@ const POSITION_OPTIONS: GroupPosition[] = [
 
 export default function GroupsPage() {
   const toast = useToast();
+  const perms = can(useMe().role);
   const groups = useFetch<GroupRow[]>('/groups');
   const members = useFetch<MemberRow[]>('/members');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '小组管理',
-    subtitle: '身份分配中心 · 每组各一位组长 / 副组长 / 实习组长',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新增小组
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '小组管理',
+      subtitle: '身份分配中心 · 每组各一位组长 / 副组长 / 实习组长',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新增小组
+        </button>
+      ) : undefined,
+    },
+    [perms.write],
+  );
 
   const groupList = groups.data ?? [];
 
@@ -121,6 +126,7 @@ function GroupPanel({
   toast: (m: string) => void;
 }) {
   const confirm = useConfirm();
+  const perms = can(useMe().role);
   const [name, setName] = useState(group.name);
   const [desc, setDesc] = useState(group.description ?? '');
   const [addSel, setAddSel] = useState('');
@@ -276,10 +282,12 @@ function GroupPanel({
           <div className="hint" style={{ margin: '12px 0 14px' }}>
             💡 身份在右侧「组员分配」逐人设定。<strong>小组长 / 副组长 / 实习组长每组各一人</strong>，且须先晋升为<strong>核心成员</strong>方可担任。
           </div>
-          <div className="flex gap-8">
-            <button className="btn" onClick={saveGroup} disabled={busy}>保存设定</button>
-            <button className="btn ghost" onClick={deleteGroup}>删除小组</button>
-          </div>
+          {perms.write && (
+            <div className="flex gap-8">
+              <button className="btn" onClick={saveGroup} disabled={busy}>保存设定</button>
+              {perms.delete && <button className="btn ghost" onClick={deleteGroup}>删除小组</button>}
+            </div>
+          )}
         </div>
 
         {/* Right — member allocation */}
@@ -287,18 +295,20 @@ function GroupPanel({
           <div className="card-head">
             <h3>组员分配 <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>（{groupMembers.length} 人）</span></h3>
           </div>
-          <div className="flex gap-8 mb-14">
-            <select value={addSel} onChange={(e) => setAddSel(e.target.value)} style={{ flex: 1 }}>
-              <option value="">选择成员加入本组…</option>
-              {unassigned.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.full_name}
-                  {m.group ? `（${m.group.name}）` : ''}
-                </option>
-              ))}
-            </select>
-            <button className="btn accent" onClick={addMember} disabled={!addSel}>＋ 添加成员</button>
-          </div>
+          {perms.write && (
+            <div className="flex gap-8 mb-14">
+              <select value={addSel} onChange={(e) => setAddSel(e.target.value)} style={{ flex: 1 }}>
+                <option value="">选择成员加入本组…</option>
+                {unassigned.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name}
+                    {m.group ? `（${m.group.name}）` : ''}
+                  </option>
+                ))}
+              </select>
+              <button className="btn accent" onClick={addMember} disabled={!addSel}>＋ 添加成员</button>
+            </div>
+          )}
           <div className="table-wrap">
             <table>
               <tbody>
@@ -314,6 +324,7 @@ function GroupPanel({
                           value={cur ?? GroupPosition.NewMember}
                           onChange={(e) => changePosition(m.id, e.target.value as GroupPosition)}
                           style={{ minWidth: 120 }}
+                          disabled={!perms.write}
                         >
                           {POSITION_OPTIONS.map((p) => {
                             const isLeadership = LEADERSHIP_POSITIONS.includes(p);
@@ -328,7 +339,9 @@ function GroupPanel({
                         </select>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn ghost sm" onClick={() => removeMember(m.id)}>移除</button>
+                        {perms.write && (
+                          <button className="btn ghost sm" onClick={() => removeMember(m.id)}>移除</button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -357,6 +370,7 @@ function GroupPanel({
 function WeeklyAttendance({ groupId }: { groupId: string }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const perms = can(useMe().role);
   const { data, loading, reload } = useFetch<GroupAttendanceResponse>(
     `/groups/${groupId}/attendance`,
   );
@@ -422,7 +436,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
           <button className="btn ghost sm" onClick={exportGrid} disabled={!data || data.meetings.length === 0}>
             ⬇ 导出
           </button>
-          <button className="btn sm" onClick={addWeek}>＋ 添加一周</button>
+          {perms.write && <button className="btn sm" onClick={addWeek}>＋ 添加一周</button>}
         </div>
       </div>
 
@@ -439,13 +453,15 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
                 {data.meetings.map((m, i) => (
                   <th key={m.id} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                     第{i + 1}周
-                    <button
-                      onClick={() => delWeek(m.id)}
-                      title="删除本周"
-                      style={{ marginLeft: 6, border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer' }}
-                    >
-                      ✕
-                    </button>
+                    {perms.delete && (
+                      <button
+                        onClick={() => delWeek(m.id)}
+                        title="删除本周"
+                        style={{ marginLeft: 6, border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer' }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </th>
                 ))}
                 <th style={{ textAlign: 'center' }}>出席</th>
@@ -461,7 +477,8 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
                         type="checkbox"
                         checked={c.status === AttendanceStatus.Present}
                         onChange={() => toggle(c.meeting_id, r.member.id, c.status)}
-                        style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--brand)' }}
+                        disabled={!perms.write}
+                        style={{ width: 18, height: 18, cursor: perms.write ? 'pointer' : 'default', accentColor: 'var(--brand)' }}
                         title={c.status === AttendanceStatus.Present ? '出席' : '未出席'}
                       />
                     </td>

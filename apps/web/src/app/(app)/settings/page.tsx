@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
+import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, PasswordInput, RoleBadge, Switch, useConfirm, useToast } from '@/components/ui';
+import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 import { AccountRow, MemberRow } from '@/lib/types';
 import {
   ACCOUNT_ROLE_OPTIONS,
@@ -20,9 +21,11 @@ import {
 import { AccountRole, AccountStatus, ACCOUNT_ROLE_LABELS } from '@tog/shared';
 
 export default function SettingsPage() {
+  const me = useMe();
+  const isSuperAdmin = me.role === AccountRole.SuperAdmin;
   const toast = useToast();
-  const accounts = useFetch<AccountRow[]>('/accounts');
-  const members = useFetch<MemberRow[]>('/members');
+  const accounts = useFetch<AccountRow[]>(isSuperAdmin ? '/accounts' : null);
+  const members = useFetch<MemberRow[]>(isSuperAdmin ? '/members' : null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [myPwOpen, setMyPwOpen] = useState(false);
@@ -48,6 +51,27 @@ export default function SettingsPage() {
   const reload = () => {
     accounts.reload();
   };
+
+  // 用户管理 is super_admin-only; others may still change their own password.
+  if (!isSuperAdmin) {
+    return (
+      <>
+        <div className="empty">仅超级管理员可访问用户管理。</div>
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <button className="btn ghost" onClick={() => setMyPwOpen(true)}>修改我的密码</button>
+        </div>
+        {myPwOpen && (
+          <ChangePasswordModal
+            onClose={() => setMyPwOpen(false)}
+            onSaved={() => {
+              setMyPwOpen(false);
+              toast('密码已更新');
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
   if (accounts.loading) return <Loading />;
 
@@ -153,7 +177,7 @@ export default function SettingsPage() {
       )}
 
       {myPwOpen && (
-        <ChangeMyPasswordModal
+        <ChangePasswordModal
           onClose={() => setMyPwOpen(false)}
           onSaved={() => {
             setMyPwOpen(false);
@@ -162,48 +186,6 @@ export default function SettingsPage() {
         />
       )}
     </>
-  );
-}
-
-function ChangeMyPasswordModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const save = async () => {
-    if (next.length < 8) return setErr('新密码至少 8 位');
-    if (next !== confirmPw) return setErr('两次输入的新密码不一致');
-    setSaving(true);
-    setErr(null);
-    try {
-      await api.post('/auth/password', { current, password: next });
-      onSaved();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal title="修改我的密码" onClose={onClose}>
-      {err && <ErrorBanner message={err} />}
-      <Field label="当前密码">
-        <PasswordInput value={current} onChange={setCurrent} autoComplete="current-password" />
-      </Field>
-      <Field label="新密码">
-        <PasswordInput value={next} onChange={setNext} placeholder="至少 8 位" autoComplete="new-password" />
-      </Field>
-      <Field label="确认新密码">
-        <PasswordInput value={confirmPw} onChange={setConfirmPw} autoComplete="new-password" />
-      </Field>
-      <div className="modal-actions">
-        <button className="btn ghost" onClick={onClose}>取消</button>
-        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '更新密码'}</button>
-      </div>
-    </Modal>
   );
 }
 

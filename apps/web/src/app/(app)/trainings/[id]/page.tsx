@@ -4,8 +4,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
+import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { can } from '@/lib/perms';
 import { exportMatrix } from '@/lib/export';
 import { MemberRow, NamelistResponse, TrainingDetail } from '@/lib/types';
 import {
@@ -24,6 +25,7 @@ export default function TrainingDetailPage() {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
+  const perms = can(useMe().role);
 
   const detail = useFetch<TrainingDetail>(`/trainings/${id}`);
   const namelist = useFetch<NamelistResponse>(`/trainings/${id}/namelist`);
@@ -115,8 +117,8 @@ export default function TrainingDetailPage() {
             </div>
           </div>
           <div className="flex gap-8">
-            <button className="btn ghost" onClick={() => setEditOpen(true)}>编辑课程</button>
-            <button className="btn ghost" style={{ color: 'var(--crit)' }} onClick={del}>删除</button>
+            {perms.write && <button className="btn ghost" onClick={() => setEditOpen(true)}>编辑课程</button>}
+            {perms.delete && <button className="btn ghost" style={{ color: 'var(--crit)' }} onClick={del}>删除</button>}
           </div>
         </div>
       </div>
@@ -126,7 +128,7 @@ export default function TrainingDetailPage() {
         <div className="card">
           <div className="card-head">
             <h3>课程场次</h3>
-            <button className="btn ghost sm" onClick={() => setSessionOpen(true)}>＋ 加场次</button>
+            {perms.write && <button className="btn ghost sm" onClick={() => setSessionOpen(true)}>＋ 加场次</button>}
           </div>
           {t.sessions.map((s) => (
             <div key={s.id} className="flex items-center gap-12" style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
@@ -152,16 +154,18 @@ export default function TrainingDetailPage() {
             <h3>报名审核</h3>
             <span className="muted" style={{ fontSize: 12 }}>{t.enrollments.length} 报名 · {pending} 待审</span>
           </div>
-          <div className="flex gap-8 mb-14">
-            <select defaultValue="" onChange={(e) => { enrollMember(e.target.value); e.target.value = ''; }} style={{ flex: 1 }}>
-              <option value="">加入报名成员…</option>
-              {(members.data ?? [])
-                .filter((m) => !t.enrollments.some((e) => e.member_id === m.id))
-                .map((m) => (
-                  <option key={m.id} value={m.id}>{m.full_name}</option>
-                ))}
-            </select>
-          </div>
+          {perms.write && (
+            <div className="flex gap-8 mb-14">
+              <select defaultValue="" onChange={(e) => { enrollMember(e.target.value); e.target.value = ''; }} style={{ flex: 1 }}>
+                <option value="">加入报名成员…</option>
+                {(members.data ?? [])
+                  .filter((m) => !t.enrollments.some((e) => e.member_id === m.id))
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
+              </select>
+            </div>
+          )}
           <div style={{ maxHeight: 296, overflowY: 'auto' }}>
             {t.enrollments.map((e) => (
               <div key={e.id} className="flex items-center gap-10" style={{ padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
@@ -175,7 +179,7 @@ export default function TrainingDetailPage() {
                 <span className={`badge ${enrollmentStatusClass(e.status)}`} style={{ flexShrink: 0 }}>
                   {ENROLLMENT_STATUS_LABELS[e.status] ?? e.status}
                 </span>
-                {e.status === EnrollmentStatus.Pending && (
+                {perms.write && e.status === EnrollmentStatus.Pending && (
                   <button className="btn good sm" style={{ flexShrink: 0 }} onClick={() => approve(e.id)}>通过</button>
                 )}
               </div>
@@ -222,7 +226,8 @@ export default function TrainingDetailPage() {
                     <td key={a.session_id} style={{ textAlign: 'center' }}>
                       <span
                         className={`tick ${a.attended ? 'on' : 'off'}`}
-                        onClick={() => toggleTick(a.session_id, r.member.id, !a.attended)}
+                        onClick={perms.write ? () => toggleTick(a.session_id, r.member.id, !a.attended) : undefined}
+                        style={{ cursor: perms.write ? 'pointer' : 'default' }}
                       >
                         {a.attended ? '✓' : ''}
                       </span>
