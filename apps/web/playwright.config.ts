@@ -13,7 +13,10 @@ import { defineConfig, devices } from '@playwright/test';
  * demo data stays clean.
  */
 const BASE_URL = process.env.E2E_BASE_URL || 'https://tog-web.tabernacleofgrace-cn.workers.dev';
-const CHROMIUM = process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium';
+// Only pin an executable when explicitly told to (e.g. a sandbox with a
+// pre-installed browser). In CI, `npx playwright install` provides the browser
+// and Playwright resolves it automatically — a hardcoded path would break.
+const CHROMIUM = process.env.PLAYWRIGHT_CHROMIUM_PATH;
 
 // In this sandbox outbound HTTPS must traverse the agent proxy, which
 // TLS-intercepts. Route the test browser through it and (only for the test
@@ -36,7 +39,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     ignoreHTTPSErrors: true,
     proxy: PROXY ? { server: PROXY } : undefined,
-    launchOptions: { executablePath: CHROMIUM },
+    launchOptions: CHROMIUM ? { executablePath: CHROMIUM } : undefined,
   },
   projects: [
     // 1) Authenticate once as super_admin and persist the session cookie.
