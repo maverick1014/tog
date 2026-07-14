@@ -15,6 +15,12 @@ import {
 
 type Ctx = { params: Promise<{ path: string[] }> };
 
+// Every request is per-user (session cookie) and hits Supabase — never cache or
+// statically optimize any method, or the auth gate would be skipped on GET.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 const MEMBER_SELECT = '*, group:groups(id,name), household:households(id,name)';
 const MEMBER_BRIEF = 'id,full_name,church_role,group_position';
 const PAIR_SELECT =
