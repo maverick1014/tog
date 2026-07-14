@@ -8,6 +8,7 @@ import { EventsModule } from './events/events.module';
 import { DonationsModule } from './donations/donations.module';
 import { TrainingsModule } from './trainings/trainings.module';
 import { DiscipleshipModule } from './discipleship/discipleship.module';
+import { AccountsModule } from './accounts/accounts.module';
 
 @Controller()
 class HealthController {
@@ -28,6 +29,7 @@ class HealthController {
     DonationsModule,
     TrainingsModule,
     DiscipleshipModule,
+    AccountsModule,
   ],
   controllers: [HealthController],
 })

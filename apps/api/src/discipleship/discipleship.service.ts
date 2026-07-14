@@ -76,7 +76,7 @@ export class DiscipleshipService {
   }
 
   async getPair(id: string) {
-    const pair = unwrap(
+    const pair = unwrap<Record<string, unknown>>(
       await this.supabase.db
         .from('discipleship_pairs')
         .select(
@@ -92,7 +92,7 @@ export class DiscipleshipService {
         .eq('pair_id', id)
         .order('day_number'),
     );
-    return { ...(pair as object), progress };
+    return { ...pair, progress };
   }
 
   updatePair(id: string, dto: UpdatePairDto) {
@@ -155,7 +155,7 @@ export class DiscipleshipService {
         .eq('pair_id', pair.id)
         .order('day_number'),
     );
-    return { ...(pair as object), progress };
+    return { ...pair, progress };
   }
 
   /** Upsert today's progress via the token — the mentor's daily form submit. */

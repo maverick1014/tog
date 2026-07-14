@@ -1,67 +1,106 @@
 -- ===========================================================================
--- Seed data for local development / demo.
+-- Seed data for local development / demo (Simplified Chinese, design-aligned).
 -- Run with: supabase db reset  (applies migrations + this seed)
+-- Names live in full_name because the all-Chinese UI renders full_name.
 -- ===========================================================================
 
 -- Groups (小组)
 insert into groups (id, name, description) values
-  ('11111111-1111-1111-1111-111111111111', '恩典小组 (Grace Group)', 'Sunday cell group'),
-  ('22222222-2222-2222-2222-222222222222', '青年小组 (Youth Group)', 'Youth fellowship');
+  ('11111111-1111-1111-1111-111111111111', '恩典小组', '主日细胞小组 · 周六 15:00'),
+  ('22222222-2222-2222-2222-222222222222', '青年小组', '青年团契 · 周五 20:00'),
+  ('33333333-3333-3333-3333-333333333333', '迦南小组', '新家庭小组 · 周日 14:00');
 
 -- Members. church_role is 'member' for everyone except the pastor; the seven
--- ranks come from group_position, allocated per member within their group.
-insert into members (id, full_name, chinese_name, email, phone, church_role, group_id, group_position, joined_at) values
-  ('a0000000-0000-0000-0000-000000000001', 'John Tan',   '陈约翰', 'john@example.com',  '0121000001', 'pastor', null, null,                                                                 '2018-01-05'),
-  ('a0000000-0000-0000-0000-000000000002', 'Mary Lim',   '林玛丽', 'mary@example.com',  '0121000002', 'member', '11111111-1111-1111-1111-111111111111', 'leader',           '2019-03-10'),
-  ('a0000000-0000-0000-0000-000000000003', 'Peter Wong', '黄彼得', 'peter@example.com', '0121000003', 'member', '11111111-1111-1111-1111-111111111111', 'assistant_leader', '2020-06-01'),
-  ('a0000000-0000-0000-0000-000000000004', 'Grace Ng',   '吴恩慈', 'grace@example.com', '0121000004', 'member', '22222222-2222-2222-2222-222222222222', 'intern_leader',    '2021-02-14'),
-  ('a0000000-0000-0000-0000-000000000005', 'Daniel Ong', '王但以理','daniel@example.com','0121000005', 'member', '22222222-2222-2222-2222-222222222222', 'core_member',      '2021-09-20'),
-  ('a0000000-0000-0000-0000-000000000006', 'Ruth Chin',  '陈路得', 'ruth@example.com',  '0121000006', 'member', '11111111-1111-1111-1111-111111111111', 'core_member',      '2022-11-11'),
-  ('a0000000-0000-0000-0000-000000000007', 'Samuel Lee', '李撒母耳','samuel@example.com','0121000007', 'member', '22222222-2222-2222-2222-222222222222', 'new_member',       '2024-05-01');
+-- ranks are derived from group_position (allocated per member in the group).
+insert into members (id, full_name, email, phone, church_role, status, group_id, group_position, joined_at) values
+  ('a0000000-0000-0000-0000-000000000001', '陈约翰',   'john@grace.org',   '012-100 0001', 'pastor', 'active', null, null, '2018-01-05'),
+  ('a0000000-0000-0000-0000-000000000002', '林玛丽',   'mary@grace.org',   '012-100 0002', 'member', 'active', '11111111-1111-1111-1111-111111111111', 'leader',           '2019-03-10'),
+  ('a0000000-0000-0000-0000-000000000003', '黄彼得',   'peter@grace.org',  '012-100 0003', 'member', 'active', '11111111-1111-1111-1111-111111111111', 'assistant_leader', '2020-06-01'),
+  ('a0000000-0000-0000-0000-000000000004', '陈路得',   'ruth@grace.org',   '012-100 0006', 'member', 'active', '11111111-1111-1111-1111-111111111111', 'core_member',      '2022-11-11'),
+  ('a0000000-0000-0000-0000-000000000005', '吴恩慈',   'grace@grace.org',  '012-100 0004', 'member', 'active', '22222222-2222-2222-2222-222222222222', 'intern_leader',    '2021-02-14'),
+  ('a0000000-0000-0000-0000-000000000006', '王但以理', 'daniel@grace.org', '012-100 0005', 'member', 'active', '22222222-2222-2222-2222-222222222222', 'core_member',      '2021-09-20'),
+  ('a0000000-0000-0000-0000-000000000007', '李撒母耳', 'sam@grace.org',    '012-100 0007', 'member', 'active', '22222222-2222-2222-2222-222222222222', 'new_member',       '2024-05-01'),
+  ('a0000000-0000-0000-0000-000000000008', '刘信实',   'faith@grace.org',  '012-100 0009', 'member', 'active', '33333333-3333-3333-3333-333333333333', 'leader',           '2022-07-18'),
+  ('a0000000-0000-0000-0000-000000000009', '张恩典',   'en@grace.org',     '012-100 0008', 'member', 'active', '33333333-3333-3333-3333-333333333333', 'regular_member',   '2023-03-02'),
+  ('a0000000-0000-0000-0000-000000000010', '郑喜乐',   'joy@grace.org',    '012-100 0010', 'member', 'active', '33333333-3333-3333-3333-333333333333', 'new_member',       '2025-01-12'),
+  ('a0000000-0000-0000-0000-000000000011', '周提摩太', 'tim@grace.org',    '012-100 0011', 'member', 'active', '11111111-1111-1111-1111-111111111111', 'regular_member',   '2020-08-22'),
+  ('a0000000-0000-0000-0000-000000000012', '孙保罗',   'paul@grace.org',   '012-100 0012', 'member', 'active', '11111111-1111-1111-1111-111111111111', 'core_member',      '2021-04-16'),
+  ('a0000000-0000-0000-0000-000000000013', '曾以斯帖', 'esther@grace.org', '012-100 0016', 'member', 'inactive', null, null, '2023-06-18');
 
--- An event + attendance
+-- Events: one past service (with attendance) + two upcoming.
 insert into events (id, title, event_type, location, starts_at) values
-  ('e0000000-0000-0000-0000-000000000001', '主日崇拜 Sunday Service', 'service', 'Main Hall', now() - interval '1 day');
+  ('e0000000-0000-0000-0000-000000000001', '主日崇拜',   'service',    '大堂',     '2026-07-12 10:00+08'),
+  ('e0000000-0000-0000-0000-000000000002', '周三祷告会', 'prayer',     '副堂',     '2026-07-15 20:00+08'),
+  ('e0000000-0000-0000-0000-000000000003', '青年团契',   'fellowship', '青年之家', '2026-07-17 20:00+08');
 
 insert into event_attendance (event_id, member_id, status) values
   ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'present'),
   ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'present'),
-  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000007', 'absent');
+  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'present'),
+  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000005', 'excused'),
+  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000006', 'present'),
+  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', 'absent');
 
--- Donations
-insert into donations (member_id, amount, fund, method) values
-  ('a0000000-0000-0000-0000-000000000002', 200.00, 'tithe', 'bank_transfer'),
-  ('a0000000-0000-0000-0000-000000000005', 50.00,  'offering', 'cash'),
-  (null, 500.00, 'building', 'online');
+-- Donations (Chinese funds matching the UI tiles; this-month + last-month).
+insert into donations (member_id, amount, fund, method, donated_at) values
+  ('a0000000-0000-0000-0000-000000000002', 200.00, '十一奉献', 'bank_transfer', '2026-07-12'),
+  (null,                                    500.00, '建堂',     'online',        '2026-07-12'),
+  ('a0000000-0000-0000-0000-000000000006', 50.00,  '主日奉献', 'cash',          '2026-07-07'),
+  ('a0000000-0000-0000-0000-000000000008', 350.00, '十一奉献', 'bank_transfer', '2026-07-07'),
+  ('a0000000-0000-0000-0000-000000000009', 120.00, '宣教',     'online',        '2026-07-05'),
+  ('a0000000-0000-0000-0000-000000000003', 80.00,  '主日奉献', 'cash',          '2026-07-05'),
+  ('a0000000-0000-0000-0000-000000000004', 60.00,  '感恩',     'cash',          '2026-07-10'),
+  ('a0000000-0000-0000-0000-000000000005', 150.00, '十一奉献', 'online',        '2026-07-03'),
+  ('a0000000-0000-0000-0000-000000000002', 200.00, '十一奉献', 'bank_transfer', '2026-06-14'),
+  ('a0000000-0000-0000-0000-000000000008', 300.00, '十一奉献', 'bank_transfer', '2026-06-28');
 
--- A training with sessions
-insert into trainings (id, name, description, category, trainer_id, total_sessions, is_enrollable) values
-  ('c0000000-0000-0000-0000-000000000001', '门徒训练 Discipleship 101', 'Foundations of faith', 'discipleship',
-   'a0000000-0000-0000-0000-000000000001', 3, true);
+-- Trainings + sessions + enrollments.
+insert into trainings (id, name, description, category, trainer_id, total_sessions, is_enrollable, starts_on, ends_on) values
+  ('c0000000-0000-0000-0000-000000000001', '门徒训练 101', '信仰根基', '门徒', 'a0000000-0000-0000-0000-000000000001', 3, true,  '2026-06-01', '2026-08-15'),
+  ('c0000000-0000-0000-0000-000000000002', '新生命栽培课程', '初信栽培', '栽培', 'a0000000-0000-0000-0000-000000000002', 6, true,  '2026-05-10', '2026-07-20'),
+  ('c0000000-0000-0000-0000-000000000003', '事奉训练营', '事奉装备', '事奉', 'a0000000-0000-0000-0000-000000000003', 4, false, '2026-03-01', '2026-04-10');
 
-insert into training_sessions (training_id, session_number, title, scheduled_at) values
-  ('c0000000-0000-0000-0000-000000000001', 1, 'Week 1: Assurance', now() + interval '7 days'),
-  ('c0000000-0000-0000-0000-000000000001', 2, 'Week 2: Prayer',    now() + interval '14 days'),
-  ('c0000000-0000-0000-0000-000000000001', 3, 'Week 3: The Word',  now() + interval '21 days');
+insert into training_sessions (training_id, session_number, title, scheduled_at, location) values
+  ('c0000000-0000-0000-0000-000000000001', 1, '得救确据', '2026-07-07 20:00+08', '副堂'),
+  ('c0000000-0000-0000-0000-000000000001', 2, '祷告',     '2026-07-14 20:00+08', '副堂'),
+  ('c0000000-0000-0000-0000-000000000001', 3, '读经',     '2026-07-21 20:00+08', '副堂');
 
 insert into training_enrollments (training_id, member_id, status, progress) values
-  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000006', 'approved', 33),
-  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000007', 'pending', 0);
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'completed',   100),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'in_progress', 66),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', 'in_progress', 33),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000009', 'approved',    0),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000007', 'pending',     0);
 
--- The 四十天一对一守望 program with a cascade of pairs
+-- The 四十天一对一守望 program with a cascade of pairs.
 insert into discipleship_programs (id, name, description, total_days) values
-  ('d0000000-0000-0000-0000-000000000001', '四十天一对一守望', 'Forty Days one-on-one watch', 40);
+  ('d0000000-0000-0000-0000-000000000001', '四十天一对一守望', '门徒式一对一守望', 40);
 
--- Cascade: Pastor -> Group Leader -> Assistant Leader
 insert into discipleship_pairs (id, program_id, mentor_id, trainee_id, parent_pair_id, status) values
-  ('f0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001',
-   'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', null, 'active'),
-  ('f0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000001',
-   'a0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003',
-   'f0000000-0000-0000-0000-000000000001', 'active');
+  ('f0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', null, 'active'),
+  ('f0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000001', 'active'),
+  ('f0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000002', 'active'),
+  ('f0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000006', 'f0000000-0000-0000-0000-000000000003', 'active'),
+  ('f0000000-0000-0000-0000-000000000005', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000004', 'active'),
+  ('f0000000-0000-0000-0000-000000000006', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000008', null, 'completed'),
+  ('f0000000-0000-0000-0000-000000000007', 'd0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000009', 'f0000000-0000-0000-0000-000000000006', 'active');
 
--- Some daily progress for the first pair
-insert into discipleship_progress (pair_id, day_number, completed, notes) values
-  ('f0000000-0000-0000-0000-000000000001', 1, true, 'Day 1 devotion done'),
-  ('f0000000-0000-0000-0000-000000000001', 2, true, 'Day 2 devotion done'),
-  ('f0000000-0000-0000-0000-000000000001', 3, false, 'Missed');
+-- Daily progress (completed day counts per pair).
+insert into discipleship_progress (pair_id, day_number, completed)
+  select 'f0000000-0000-0000-0000-000000000001', g, true from generate_series(1,31) g;
+insert into discipleship_progress (pair_id, day_number, completed)
+  select 'f0000000-0000-0000-0000-000000000002', g, true from generate_series(1,22) g;
+insert into discipleship_progress (pair_id, day_number, completed)
+  select 'f0000000-0000-0000-0000-000000000003', g, true from generate_series(1,12) g;
+insert into discipleship_progress (pair_id, day_number, completed)
+  select 'f0000000-0000-0000-0000-000000000004', g, true from generate_series(1,5) g;
+insert into discipleship_progress (pair_id, day_number, completed)
+  select 'f0000000-0000-0000-0000-000000000006', g, true from generate_series(1,40) g;
+insert into discipleship_progress (pair_id, day_number, completed)
+  select 'f0000000-0000-0000-0000-000000000007', g, true from generate_series(1,8) g;
+
+-- Login accounts (用户管理). Each is tied to a member profile.
+insert into app_users (member_id, email, account_role, status, two_factor, last_sign_in_at) values
+  ('a0000000-0000-0000-0000-000000000001', 'john@grace.org',  'super_admin', 'active',   true,  now() - interval '2 hours'),
+  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day'),
+  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days');

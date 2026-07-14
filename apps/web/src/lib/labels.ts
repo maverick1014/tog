@@ -1,11 +1,23 @@
 import {
+  AccountRole,
+  ACCOUNT_ROLE_LABELS,
+  AccountStatus,
+  AttendanceStatus,
   ChurchRole,
-  displayRoleZh,
+  DonationMethod,
   EnrollmentStatus,
   EventType,
+  Gender,
   GROUP_POSITION_LABELS,
   GroupPosition,
+  MemberStatus,
+  PairStatus,
+  displayRoleZh,
 } from '@tog/shared';
+
+/* -------------------------------------------------------------------------
+ * Members & derived identity
+ * ---------------------------------------------------------------------- */
 
 /** Chinese label for a group position (小组长/副组长/…). */
 export function positionZh(pos: GroupPosition | string | null): string {
@@ -22,39 +34,260 @@ export function memberRoleZh(m: {
   return displayRoleZh(m);
 }
 
-export const EVENT_TYPE_LABELS: Record<string, string> = {
-  [EventType.Service]: '主日崇拜 Service',
-  [EventType.Meeting]: '聚会 Meeting',
-  [EventType.Prayer]: '祷告会 Prayer',
-  [EventType.Fellowship]: '团契 Fellowship',
-  [EventType.Other]: '其他 Other',
+/** Full display order for the seven ranks, for filter chips + charts. */
+export const ROLE_ORDER = [
+  '牧师',
+  '小组长',
+  '副组长',
+  '实习组长',
+  '核心成员',
+  '普通成员',
+  '新成员',
+] as const;
+
+/**
+ * Per-role tag palette — matches the Claude Design `roleTags` exactly. Each
+ * derived role gets its own colour family (bg / fg / dot), not a shared tone.
+ */
+export const ROLE_TAG: Record<string, { bg: string; fg: string; dot: string }> = {
+  牧师: { bg: '#fbe3e0', fg: '#b3261e', dot: '#d1362b' },
+  小组长: { bg: '#fce7d4', fg: '#b5650f', dot: '#e0862b' },
+  副组长: { bg: '#faf0c6', fg: '#8a6a0d', dot: '#d4a715' },
+  实习组长: { bg: '#d7f0df', fg: '#1f7a44', dot: '#2f9e5b' },
+  核心成员: { bg: '#dae8fb', fg: '#1d5fb8', dot: '#2f7ad1' },
+  普通成员: { bg: '#e5e8ec', fg: '#4a5560', dot: '#7c8894' },
+  新成员: { bg: '#eae1f8', fg: '#6b3fa0', dot: '#8b5cc7' },
+  访客: { bg: '#ece9e6', fg: '#7a736e', dot: '#b0a49b' },
+  未分组: { bg: '#f0eeec', fg: '#9a938f', dot: '#c3bbb6' },
 };
 
-export const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
-  [EnrollmentStatus.Pending]: 'Pending',
-  [EnrollmentStatus.Approved]: 'Approved',
-  [EnrollmentStatus.InProgress]: 'In Progress',
-  [EnrollmentStatus.Completed]: 'Completed',
-  [EnrollmentStatus.Dropped]: 'Dropped',
+/** Inline background/color for a role badge (design roleTag). */
+export function roleTagStyle(role: string): { background: string; color: string } {
+  const t = ROLE_TAG[role] ?? ROLE_TAG['未分组'];
+  return { background: t.bg, color: t.fg };
+}
+
+/** Dot colour for a role (design roleDot) — also used by the 身份分布 chart. */
+export function roleDot(role: string): string {
+  return (ROLE_TAG[role] ?? ROLE_TAG['未分组']).dot;
+}
+
+export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
+  [MemberStatus.Active]: '在册',
+  [MemberStatus.Inactive]: '停止聚会',
 };
+
+export function memberStatusLabel(status: string): string {
+  return MEMBER_STATUS_LABELS[status as MemberStatus] ?? status;
+}
+
+export function memberStatusClass(status: string): string {
+  if (status === MemberStatus.Active) return 'b-good';
+  return 'b-gray';
+}
+
+export const GENDER_LABELS: Record<string, string> = {
+  [Gender.Male]: '男',
+  [Gender.Female]: '女',
+  [Gender.Other]: '其他',
+};
+
+/* -------------------------------------------------------------------------
+ * Events & attendance
+ * ---------------------------------------------------------------------- */
+
+export const EVENT_TYPE_LABELS: Record<string, string> = {
+  [EventType.Service]: '主日崇拜',
+  [EventType.Meeting]: '聚会',
+  [EventType.Prayer]: '祷告会',
+  [EventType.Fellowship]: '团契',
+  [EventType.Other]: '其他',
+};
+
+export const EVENT_TYPE_OPTIONS = [
+  EventType.Service,
+  EventType.Meeting,
+  EventType.Prayer,
+  EventType.Fellowship,
+  EventType.Other,
+];
+
+export function eventBadgeClass(type: string): string {
+  if (type === EventType.Service) return 'b-brand';
+  if (type === EventType.Prayer) return 'b-accent';
+  if (type === EventType.Fellowship) return 'b-good';
+  if (type === EventType.Meeting) return 'b-warn';
+  return 'b-gray';
+}
+
+export const ATTENDANCE_LABELS: Record<string, string> = {
+  [AttendanceStatus.Present]: '出席',
+  [AttendanceStatus.Excused]: '请假',
+  [AttendanceStatus.Absent]: '缺席',
+};
+
+/* -------------------------------------------------------------------------
+ * Donations
+ * ---------------------------------------------------------------------- */
+
+export const DONATION_FUNDS = ['十一奉献', '主日奉献', '建堂', '宣教', '感恩'];
+
+export function fundBadgeClass(fund: string): string {
+  switch (fund) {
+    case '十一奉献':
+      return 'b-brand';
+    case '主日奉献':
+      return 'b-accent';
+    case '建堂':
+      return 'b-good';
+    case '宣教':
+      return 'b-warn';
+    default:
+      return 'b-gray';
+  }
+}
+
+export const DONATION_METHOD_LABELS: Record<string, string> = {
+  [DonationMethod.Cash]: '现金',
+  [DonationMethod.BankTransfer]: '银行转账',
+  [DonationMethod.Card]: '刷卡',
+  [DonationMethod.Online]: '线上',
+  [DonationMethod.Other]: '其他',
+};
+
+export const DONATION_METHOD_OPTIONS = [
+  DonationMethod.Cash,
+  DonationMethod.BankTransfer,
+  DonationMethod.Card,
+  DonationMethod.Online,
+];
+
+/* -------------------------------------------------------------------------
+ * Trainings & enrollment
+ * ---------------------------------------------------------------------- */
+
+export const TRAINING_CATEGORIES = ['门徒', '栽培', '事奉'];
+
+/** Training-category tag — the design uses the accent tone for all categories. */
+export function categoryBadgeClass(_cat: string | null): string {
+  return 'b-accent';
+}
+
+export const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
+  [EnrollmentStatus.Pending]: '待审核',
+  [EnrollmentStatus.Approved]: '已通过',
+  [EnrollmentStatus.InProgress]: '进行中',
+  [EnrollmentStatus.Completed]: '已完成',
+  [EnrollmentStatus.Dropped]: '已退出',
+};
+
+export function enrollmentStatusClass(status: string): string {
+  switch (status) {
+    case EnrollmentStatus.Completed:
+    case EnrollmentStatus.Approved:
+      return 'b-good';
+    case EnrollmentStatus.InProgress:
+      return 'b-warn';
+    case EnrollmentStatus.Dropped:
+      return 'b-crit';
+    default:
+      return 'b-gray';
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Discipleship
+ * ---------------------------------------------------------------------- */
+
+export const PAIR_STATUS_LABELS: Record<string, string> = {
+  [PairStatus.Active]: '进行中',
+  [PairStatus.Completed]: '已完成',
+  [PairStatus.Paused]: '已暂停',
+};
+
+export function pairStatusClass(status: string): string {
+  switch (status) {
+    case PairStatus.Completed:
+      return 'b-good';
+    case PairStatus.Paused:
+      return 'b-gray';
+    default:
+      return 'b-warn';
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Accounts (用户管理)
+ * ---------------------------------------------------------------------- */
+
+export const ACCOUNT_ROLE_ZH = ACCOUNT_ROLE_LABELS;
+
+export const ACCOUNT_ROLE_OPTIONS = [
+  AccountRole.SuperAdmin,
+  AccountRole.Admin,
+  AccountRole.Coworker,
+  AccountRole.ReadOnly,
+];
+
+export function accountRoleClass(role: string): string {
+  switch (role) {
+    case AccountRole.SuperAdmin:
+      return 'b-brand';
+    case AccountRole.Admin:
+      return 'b-accent';
+    case AccountRole.Coworker:
+      return 'b-good';
+    default:
+      return 'b-gray';
+  }
+}
+
+export function accountStatusLabel(status: string): string {
+  return status === AccountStatus.Active ? '启用' : '停用';
+}
+
+export function accountStatusClass(status: string): string {
+  return status === AccountStatus.Active ? 'b-good' : 'b-gray';
+}
+
+/* -------------------------------------------------------------------------
+ * Formatting helpers
+ * ---------------------------------------------------------------------- */
+
+export function initialOf(name: string | null | undefined): string {
+  if (!name) return '?';
+  return name.trim().slice(-2);
+}
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
 }
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+  const date = `${d.getMonth() + 1}月${d.getDate()}日`;
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes(),
+  ).padStart(2, '0')}`;
+  return `${date} ${time}`;
+}
+
+export function formatMoney(value: number | string | null | undefined): string {
+  const n = Number(value ?? 0);
+  return n.toLocaleString('en-MY', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
+}
+
+export function formatMoneyShort(value: number | string | null | undefined): string {
+  const n = Number(value ?? 0);
+  return n.toLocaleString('en-MY');
 }

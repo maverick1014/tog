@@ -1,5 +1,8 @@
-const BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:4000';
+// Default to same-origin: the API now lives in Next.js route handlers under
+// /api (which run on the Cloudflare Workers runtime via OpenNext). Set
+// NEXT_PUBLIC_API_URL only if you want to point at a standalone API host
+// (e.g. the legacy NestJS server on :4000).
+const BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
 
 async function request<T>(
   path: string,

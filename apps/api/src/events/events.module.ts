@@ -57,7 +57,7 @@ class EventsService {
   }
 
   async findOne(id: string) {
-    const event = unwrap(
+    const event = unwrap<Record<string, unknown>>(
       await this.supabase.db.from('events').select('*').eq('id', id).single(),
     );
     const attendance = unwrap(
@@ -66,7 +66,7 @@ class EventsService {
         .select('*, member:members(id,full_name,church_role,group_position)')
         .eq('event_id', id),
     );
-    return { ...(event as object), attendance };
+    return { ...event, attendance };
   }
 
   create(dto: EventDto) {
