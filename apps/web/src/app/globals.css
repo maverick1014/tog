@@ -1,6 +1,6 @@
 /* ==========================================================================
    TOG · 主恩堂教会管理系统 — design system
-   Crimson + charcoal on warm white. Light + dark, mobile-first.
+   Crimson + charcoal on warm white. Light, mobile-first.
    Derived from the church logo (charcoal globe + crimson cross-arrow).
    ========================================================================== */
 
@@ -30,31 +30,6 @@
     "SimSun", serif;
   --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     "Noto Sans CJK SC", system-ui, -apple-system, sans-serif;
-}
-
-/* Dark theme — token-driven; a toggle stamps data-theme on <html>. --------- */
-:root[data-theme='dark'] {
-  --brand: #d94a4f;
-  --brand-2: #c23c41;
-  --brand-soft: #3a2422;
-  --accent: #cbc6c3;
-  --accent-soft: #2a2624;
-  --paper: #141211;
-  --surface: #1c1917;
-  --surface-2: #211d1b;
-  --border: #322d2b;
-  --ink: #ece7e5;
-  --muted: #a29b97;
-  --faint: #6f6a68;
-  --rail: #100e0d;
-  --good: #4bab74;
-  --good-soft: #1c3327;
-  --warn: #d8a441;
-  --warn-soft: #35291318;
-  --warn-soft: #33280f;
-  --crit: #e86b52;
-  --crit-soft: #3a221b;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 * {

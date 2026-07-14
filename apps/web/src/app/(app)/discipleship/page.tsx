@@ -1,11 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { PairProgressModal } from '@/components/PairProgressModal';
 import { MemberRow, OverviewRow, PairRow, ProgramRow } from '@/lib/types';
 import {
   memberRoleZh,
@@ -28,7 +28,6 @@ interface Node {
 }
 
 export default function DiscipleshipPage() {
-  const router = useRouter();
   const toast = useToast();
   const programs = useFetch<ProgramRow[]>('/discipleship/programs');
   const programId = programs.data?.[0]?.id;
@@ -94,14 +93,6 @@ export default function DiscipleshipPage() {
   const forest = useMemo(() => buildForest(nodes), [nodes]);
   const doneList = nodes.filter((n) => classify(n) === 'done');
   const pendingList = nodes.filter((n) => classify(n) === 'pending');
-
-  const copyLink = (token: string) => {
-    const link = `${window.location.origin}/d/${token}`;
-    navigator.clipboard?.writeText(link).then(
-      () => toast('链接已复制'),
-      () => toast(link),
-    );
-  };
 
   const renderForest = (full = false) => (
     <div
@@ -299,7 +290,7 @@ export default function DiscipleshipPage() {
       </div>
 
       {popup && (
-        <ProgressPopup node={popup} onClose={() => setPopup(null)} onCopy={copyLink} onOpenForm={(tk) => window.open(`/d/${tk}`, '_blank')} onDetail={(id) => router.push(`/discipleship/pairs/${id}`)} />
+        <PairProgressModal pairId={popup.pair.id} onClose={() => setPopup(null)} />
       )}
 
       {fullscreen && (
@@ -499,61 +490,6 @@ function DiscList({
         );
       })}
     </div>
-  );
-}
-
-function ProgressPopup({
-  node,
-  onClose,
-  onCopy,
-  onOpenForm,
-  onDetail,
-}: {
-  node: Node;
-  onClose: () => void;
-  onCopy: (token: string) => void;
-  onOpenForm: (token: string) => void;
-  onDetail: (id: string) => void;
-}) {
-  const { pair, days, total, pct } = node;
-  const link = typeof window !== 'undefined' ? `${window.location.origin}/d/${pair.form_token}` : '';
-  const role = pair.trainee ? memberRoleZh(pair.trainee) : '';
-
-  return (
-    <Modal onClose={onClose} size="wide">
-      <div className="flex-between" style={{ alignItems: 'flex-start' }}>
-        <div>
-          <div className="flex items-center gap-8 flex-wrap">
-            <span className="badge b-accent">被带领</span>
-            <strong className="serif" style={{ fontSize: 18 }}>{pair.trainee?.full_name}</strong>
-            <span className="muted" style={{ fontSize: 12.5 }}>{role}</span>
-          </div>
-          <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>带领者：{pair.mentor?.full_name} · 四十天一对一守望</div>
-        </div>
-        <button className="icon-btn" onClick={onClose}>✕</button>
-      </div>
-
-      <div className="progress-row mt-14">
-        <div className="bar"><span style={{ width: `${pct}%` }} /></div>
-        <span className="pct">{pct}%</span>
-      </div>
-      <div className="muted" style={{ fontSize: 13, margin: '16px 0 8px' }}>40 天守望格 · 已完成 {days} / {total} 天</div>
-      <div className="day-grid">
-        {Array.from({ length: total }, (_, i) => (
-          <div key={i} className={`day-cell ${i < days ? 'done' : ''}`}>{i + 1}</div>
-        ))}
-      </div>
-
-      <div className="field mt-16">
-        <label className="field-label">专属填写链接</label>
-        <input readOnly value={link} style={{ background: 'var(--surface-2)', color: 'var(--muted)' }} />
-      </div>
-      <div className="flex gap-8">
-        <button className="btn grow" onClick={() => onCopy(pair.form_token)}>复制链接</button>
-        <button className="btn accent grow" onClick={() => onOpenForm(pair.form_token)}>打开表单</button>
-        <button className="btn ghost" onClick={() => onDetail(pair.id)}>详情</button>
-      </div>
-    </Modal>
   );
 }
 

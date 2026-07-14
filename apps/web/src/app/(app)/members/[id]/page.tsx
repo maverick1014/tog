@@ -5,8 +5,10 @@ import { useRef, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { usePageChrome } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Loading, ProgressBar, RoleBadge, useToast } from '@/components/ui';
+import { Avatar, ErrorBanner, Field, Loading, Modal, ProgressBar, RoleBadge, useToast } from '@/components/ui';
+import { PairProgressModal } from '@/components/PairProgressModal';
 import { EnrollmentRow, MemberRow, PairRow } from '@/lib/types';
+import { Gender, MemberStatus } from '@tog/shared';
 import {
   categoryBadgeClass,
   ENROLLMENT_STATUS_LABELS,
@@ -27,8 +29,10 @@ export default function MemberDetailPage() {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [popupPair, setPopupPair] = useState<string | null>(null);
 
-  usePageChrome({ title: '成员详情', subtitle: '档案 · 个人培训记录 · 门训配对' }, [id]);
+  usePageChrome({ title: '成员详情', subtitle: '档案 · 个人培训记录 · 四十天守望' }, [id]);
 
   const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -105,6 +109,7 @@ export default function MemberDetailPage() {
               />
             </div>
           </div>
+          <button className="btn" onClick={() => setEditOpen(true)}>编辑资料</button>
         </div>
 
         <div className="grid g4" style={{ marginTop: 18 }}>
@@ -157,7 +162,7 @@ export default function MemberDetailPage() {
           </table>
         </div>
 
-        <div className="section-label" style={{ margin: '24px 0 12px' }}>门训配对</div>
+        <div className="section-label" style={{ margin: '24px 0 12px' }}>四十天守望</div>
         {pairs.length === 0 ? (
           <div className="faint" style={{ fontSize: 13 }}>尚未参与四十天守望。</div>
         ) : (
@@ -169,7 +174,7 @@ export default function MemberDetailPage() {
                 key={p.id}
                 className="flex items-center gap-12 flex-wrap"
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 8, cursor: 'pointer' }}
-                onClick={() => router.push(`/discipleship/pairs/${p.id}`)}
+                onClick={() => setPopupPair(p.id)}
               >
                 <span className="badge b-brand">{asMentor ? '带领者' : '被带领'}</span>
                 <strong>{other}</strong>
@@ -180,6 +185,126 @@ export default function MemberDetailPage() {
           })
         )}
       </div>
+
+      {editOpen && (
+        <EditMemberModal
+          member={m}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            member.reload();
+            toast('已保存资料');
+          }}
+        />
+      )}
+
+      {popupPair && <PairProgressModal pairId={popupPair} onClose={() => setPopupPair(null)} />}
     </>
+  );
+}
+
+function EditMemberModal({
+  member,
+  onClose,
+  onSaved,
+}: {
+  member: MemberRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    full_name: member.full_name ?? '',
+    chinese_name: member.chinese_name ?? '',
+    phone: member.phone ?? '',
+    email: member.email ?? '',
+    gender: member.gender ?? '',
+    date_of_birth: member.date_of_birth ?? '',
+    joined_at: member.joined_at ?? '',
+    status: member.status,
+    notes: member.notes ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!form.full_name.trim()) {
+      setErr('请填写姓名');
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      await api.patch(`/members/${member.id}`, {
+        full_name: form.full_name.trim(),
+        chinese_name: form.chinese_name || null,
+        phone: form.phone || null,
+        email: form.email || null,
+        gender: form.gender || null,
+        date_of_birth: form.date_of_birth || null,
+        joined_at: form.joined_at || null,
+        status: form.status,
+        notes: form.notes || null,
+      });
+      onSaved();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title="编辑成员资料" onClose={onClose}>
+      {err && <ErrorBanner message={err} />}
+      <div className="form-row">
+        <Field label="姓名">
+          <input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+        </Field>
+        <Field label="英文名 / 别名">
+          <input value={form.chinese_name} onChange={(e) => setForm({ ...form, chinese_name: e.target.value })} />
+        </Field>
+      </div>
+      <div className="form-row">
+        <Field label="电话">
+          <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="012-000 0000" />
+        </Field>
+        <Field label="邮箱">
+          <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@grace.org" />
+        </Field>
+      </div>
+      <div className="form-row">
+        <Field label="性别">
+          <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value as Gender | '' })}>
+            <option value="">未填写</option>
+            <option value={Gender.Male}>{GENDER_LABELS[Gender.Male]}</option>
+            <option value={Gender.Female}>{GENDER_LABELS[Gender.Female]}</option>
+          </select>
+        </Field>
+        <Field label="状态">
+          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as MemberStatus })}>
+            <option value={MemberStatus.Active}>在册</option>
+            <option value={MemberStatus.Inactive}>停止聚会</option>
+          </select>
+        </Field>
+      </div>
+      <div className="form-row">
+        <Field label="生日">
+          <input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
+        </Field>
+        <Field label="加入日期">
+          <input type="date" value={form.joined_at} onChange={(e) => setForm({ ...form, joined_at: e.target.value })} />
+        </Field>
+      </div>
+      <Field label="备注">
+        <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
+      </Field>
+      <div className="hint" style={{ marginBottom: 6 }}>
+        💡 身份（组长 / 成员等）与所属小组在「小组管理」逐人设定，此处不修改。
+      </div>
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onClose}>取消</button>
+        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '保存'}</button>
+      </div>
+    </Modal>
   );
 }
