@@ -222,6 +222,28 @@ export function pairStatusClass(status: string): string {
 
 export const ACCOUNT_ROLE_ZH = ACCOUNT_ROLE_LABELS;
 
+/** What each permission role can do — shown in 用户管理 for clarity. */
+export const ACCOUNT_ROLE_PERMISSIONS: Record<AccountRole, string[]> = {
+  [AccountRole.SuperAdmin]: [
+    '全部权限',
+    '用户与权限管理',
+    '系统设置',
+    '所有牧养模块的增 / 删 / 改 / 查',
+  ],
+  [AccountRole.Admin]: [
+    '成员 / 小组 / 聚会 / 奉献 / 培训 / 门训 的增 / 删 / 改 / 查',
+    '在小组管理中分配身份',
+    '不可管理登录账户与权限',
+  ],
+  [AccountRole.Coworker]: [
+    '点名 / 录入奉献 / 培训出席 / 门训进度',
+    '编辑成员基本资料',
+    '不可删除记录',
+    '不可管理账户或更改身份分配',
+  ],
+  [AccountRole.ReadOnly]: ['仅查看所有数据', '不可进行任何修改'],
+};
+
 export const ACCOUNT_ROLE_OPTIONS = [
   AccountRole.SuperAdmin,
   AccountRole.Admin,

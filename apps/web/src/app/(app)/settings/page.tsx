@@ -9,6 +9,7 @@ import { ErrorBanner, Field, Loading, Modal, RoleBadge, Switch, useToast } from 
 import { AccountRow, MemberRow } from '@/lib/types';
 import {
   ACCOUNT_ROLE_OPTIONS,
+  ACCOUNT_ROLE_PERMISSIONS,
   ACCOUNT_ROLE_ZH,
   accountRoleClass,
   accountStatusClass,
@@ -53,6 +54,11 @@ export default function SettingsPage() {
           reload();
           toast('已保存账户设置');
         }}
+        onDeleted={() => {
+          setDetailId(null);
+          reload();
+          toast('已删除账户');
+        }}
       />
     );
   }
@@ -64,6 +70,28 @@ export default function SettingsPage() {
         💡 每个登录账户都<strong>关联一位成员档案</strong>。点右上角「＋ 新建账户」选择成员并授予权限；点任一账户可管理其权限、安全与偏好。<br />
         <span className="faint">注：v1 暂未启用登录鉴权，此处仅维护账户与权限模型，为日后接入 Supabase Auth 预留。</span>
       </div>
+      <div className="card mb-14">
+        <div className="card-head">
+          <h3>权限说明</h3>
+          <span className="muted" style={{ fontSize: 12 }}>各权限角色可执行的操作</span>
+        </div>
+        <div className="grid g4">
+          {ACCOUNT_ROLE_OPTIONS.map((r) => (
+            <div
+              key={r}
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}
+            >
+              <span className={`badge ${accountRoleClass(r)}`}>{ACCOUNT_ROLE_ZH[r]}</span>
+              <ul style={{ margin: '9px 0 0', paddingLeft: 16, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                {ACCOUNT_ROLE_PERMISSIONS[r].map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="card" style={{ padding: 6 }}>
         <div className="table-wrap">
           <table>
@@ -125,10 +153,12 @@ function AccountDetail({
   account,
   onBack,
   onSaved,
+  onDeleted,
 }: {
   account: AccountRow;
   onBack: () => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState(account.email);
@@ -143,6 +173,16 @@ function AccountDetail({
   const [err, setErr] = useState<string | null>(null);
 
   const memberRole = account.member ? memberRoleZh(account.member) : '未分组';
+
+  const del = async () => {
+    if (!confirm(`删除 ${account.member?.full_name ?? '该成员'} 的登录账户？其成员档案会保留。`)) return;
+    try {
+      await api.delete(`/accounts/${account.id}`);
+      onDeleted();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -270,6 +310,23 @@ function AccountDetail({
           </div>
           <Switch on={nWeekly} onToggle={() => setNWeekly(!nWeekly)} />
         </div>
+      </div>
+
+      <div
+        className="flex-between flex-wrap mt-16"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: '16px 20px' }}
+      >
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--crit)' }}>删除账户</div>
+          <div className="muted" style={{ fontSize: 11.5 }}>移除此登录账户 · 不会删除其成员档案</div>
+        </div>
+        <button
+          className="btn"
+          style={{ background: 'transparent', color: 'var(--crit)', border: '1px solid var(--crit-soft)' }}
+          onClick={del}
+        >
+          删除账户
+        </button>
       </div>
 
       <div className="flex-between flex-wrap mt-16">
