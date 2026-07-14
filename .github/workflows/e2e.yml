@@ -11,12 +11,6 @@ on:
         description: Target base URL
         required: false
         default: https://tog-web.tabernacleofgrace-cn.workers.dev
-  # Temporary: also run on pushes to the dev branch so the suite can be
-  # validated before it lands on the default branch (where workflow_dispatch
-  # becomes available). Narrow/remove once merged.
-  push:
-    branches: [claude/design-project-impl-r6iiu8]
-    paths: ['apps/web/e2e/**', 'apps/web/playwright.config.ts', '.github/workflows/e2e.yml']
 
 permissions:
   contents: read
