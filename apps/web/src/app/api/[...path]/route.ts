@@ -1,4 +1,11 @@
 import { getDb, HttpError, json, unwrap } from '@/lib/server/db';
+import {
+  clearCookie,
+  getSession,
+  sessionCookie,
+  signSession,
+  verifyPassword,
+} from '@/lib/server/auth';
 
 /**
  * The whole REST API, ported from the NestJS app into a single Cloudflare
@@ -29,6 +36,24 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
   };
 
   const [r0, r1, r2, r3] = p;
+
+  // ---- Auth + access control ------------------------------------------------
+  if (r0 === 'auth') return authRoute(method, req, p, db);
+
+  // The mentor daily form (/d/<token>) is public by design — no session.
+  const isPublicForm = r0 === 'discipleship' && r1 === 'form';
+  if (!isPublicForm) {
+    const session = await getSession(req);
+    if (!session) throw new HttpError(401, '未登录');
+    if (method !== 'GET') {
+      // Permission matrix enforcement.
+      if (session.role === 'readonly') throw new HttpError(403, '只读账户无法修改');
+      if (r0 === 'accounts' && session.role !== 'super_admin')
+        throw new HttpError(403, '仅超级管理员可管理登录账户');
+      if (method === 'DELETE' && !['super_admin', 'admin'].includes(session.role))
+        throw new HttpError(403, '当前角色无删除权限');
+    }
+  }
 
   // ---- Members --------------------------------------------------------------
   if (r0 === 'members') {
@@ -560,6 +585,60 @@ async function namelist(db: ReturnType<typeof getDb>, trainingId: string) {
   }));
 
   return { sessions, rows };
+}
+
+// --- Auth routes ------------------------------------------------------------
+
+async function authRoute(
+  method: string,
+  req: Request,
+  p: string[],
+  db: ReturnType<typeof getDb>,
+): Promise<Response> {
+  if (p[1] === 'login' && method === 'POST') {
+    const dto = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
+    const res = await db
+      .from('app_users')
+      .select('id, email, account_role, status, password_hash, member:members(id,full_name)')
+      .eq('email', (dto.email ?? '').toLowerCase().trim())
+      .maybeSingle();
+    if (res.error) throw new HttpError(500, res.error.message);
+    const user = res.data as {
+      id: string;
+      email: string;
+      account_role: string;
+      status: string;
+      password_hash: string | null;
+      member: { id: string; full_name: string } | null;
+    } | null;
+    if (!user || user.status !== 'active') throw new HttpError(401, '账户不存在或已停用');
+    const ok = await verifyPassword(dto.password ?? '', user.password_hash);
+    if (!ok) throw new HttpError(401, '邮箱或密码错误');
+    await db
+      .from('app_users')
+      .update({ last_sign_in_at: new Date().toISOString() })
+      .eq('id', user.id);
+    const name = user.member?.full_name ?? user.email;
+    const token = await signSession({
+      sub: user.id,
+      role: user.account_role,
+      member: user.member?.id ?? null,
+      name,
+    });
+    return new Response(
+      JSON.stringify({ id: user.id, email: user.email, account_role: user.account_role, name }),
+      { status: 200, headers: { 'content-type': 'application/json', 'set-cookie': sessionCookie(token) } },
+    );
+  }
+  if (p[1] === 'logout' && method === 'POST') {
+    return new Response(null, { status: 204, headers: { 'set-cookie': clearCookie() } });
+  }
+  if (p[1] === 'me' && method === 'GET') {
+    const s = await getSession(req);
+    if (!s) throw new HttpError(401, '未登录');
+    return json({ id: s.sub, role: s.role, member: s.member, name: s.name });
+  }
+  throw new HttpError(404, `No auth route for ${method} /api/${p.join('/')}`);
 }
 
 // --- HTTP method entry points ----------------------------------------------

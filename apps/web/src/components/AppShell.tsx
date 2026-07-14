@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ToastProvider } from './ui';
 import { GlobeMark } from './GlobeMark';
+import { initialOf } from '@/lib/labels';
+import { ACCOUNT_ROLE_LABELS, AccountRole } from '@tog/shared';
+
+type Me = { name: string; role: string; member: string | null };
 
 /* -------------------------------------------------------------------------
  * Page chrome context — pages set the topbar title / subtitle / action.
@@ -57,14 +61,44 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
   const [chrome, setChrome] = useState<Chrome>({ title: '仪表盘' });
+  const [me, setMe] = useState<Me | null | undefined>(undefined);
 
   // Close the mobile drawer on navigation.
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
 
+  // Require a valid session — otherwise send the user to the login page.
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((u) => {
+        if (alive) setMe(u);
+      })
+      .catch(() => {
+        window.location.href = '/login';
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  };
+
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
+
+  if (!me) {
+    return (
+      <div className="loading" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        加载中…
+      </div>
+    );
+  }
 
   return (
     <ToastProvider>
@@ -99,13 +133,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
 
             <div className="grow" />
-            <Link href="/settings" className="nav-user">
-              <div className="avatar">约翰</div>
+            <div className="nav-user" onClick={logout} title="退出登录" style={{ cursor: 'pointer' }}>
+              <div className="avatar">{initialOf(me.name)}</div>
               <div className="who">
-                陈约翰
-                <small>牧师 · 管理员</small>
+                {me.name}
+                <small>{ACCOUNT_ROLE_LABELS[me.role as AccountRole] ?? me.role} · 退出登录</small>
               </div>
-            </Link>
+            </div>
           </aside>
 
           <div className="scrim" onClick={() => setNavOpen(false)} />

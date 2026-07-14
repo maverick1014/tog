@@ -100,10 +100,11 @@ insert into discipleship_progress (pair_id, day_number, completed)
   select 'f0000000-0000-0000-0000-000000000007', g, true from generate_series(1,8) g;
 
 -- Login accounts (用户管理). Each is tied to a member profile.
-insert into app_users (member_id, email, account_role, status, two_factor, last_sign_in_at) values
-  ('a0000000-0000-0000-0000-000000000001', 'john@grace.org',  'super_admin', 'active',   true,  now() - interval '2 hours'),
-  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day'),
-  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days');
+-- Demo password for all three accounts: grace2026 (PBKDF2-HMAC-SHA256).
+insert into app_users (member_id, email, account_role, status, two_factor, last_sign_in_at, password_hash) values
+  ('a0000000-0000-0000-0000-000000000001', 'john@grace.org',  'super_admin', 'active',   true,  now() - interval '2 hours',  'pbkdf2$100000$fG6H3PSCMih3zJdJcGaL0g$s2eis5B-IpbzVEADzFyfWjDDHRtMzVZor1orVQ4vYbs'),
+  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day',   'pbkdf2$100000$pCu75vqutmWDkMfaHhOFww$NfoZPcxBxvSRyo4wBSqwvncwrd0yxeaMT9zV8Xj6bBQ'),
+  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days', 'pbkdf2$100000$7zWPtTFjwUNLJ7D3dY8abA$jtHHaaXJltiyi08cDeS6eNaE49gSc6P7DjzWJDj1TuI');
 
 -- Life-group weekly meetings + attendance.
 insert into group_meetings (id, group_id, meeting_date) values

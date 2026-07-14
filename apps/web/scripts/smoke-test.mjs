@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
- * Post-deploy smoke test — hits the live Worker and asserts the core /api
- * endpoints return HTTP 200 with the expected shape.
+ * Post-deploy smoke test. Verifies the live deployment end-to-end, including
+ * that the API is protected by auth and that a valid login unlocks the data.
  *
- * Usage:  node apps/web/scripts/smoke-test.mjs
- *         SMOKE_URL=https://example.workers.dev node apps/web/scripts/smoke-test.mjs
+ * Env:
+ *   SMOKE_URL       base URL (default: the tog-web Worker)
+ *   SMOKE_EMAIL     login email (default: john@grace.org)
+ *   SMOKE_PASSWORD  login password (default: grace2026)
  *
  * Requires Node 20+ (global fetch). Exits 0 on success, 1 on any failure.
  */
@@ -13,79 +15,69 @@ const BASE = (process.env.SMOKE_URL || 'https://tog-web.tabernacleofgrace-cn.wor
   /\/+$/,
   '',
 );
+const EMAIL = process.env.SMOKE_EMAIL || 'john@grace.org';
+const PASSWORD = process.env.SMOKE_PASSWORD || 'grace2026';
 
-async function getJson(path) {
-  const url = `${BASE}${path}`;
-  let res;
-  try {
-    res = await fetch(url);
-  } catch (err) {
-    throw new Error(`GET ${url} failed to connect: ${err.message}`);
-  }
-  if (res.status !== 200) {
-    throw new Error(`GET ${url} returned HTTP ${res.status} (expected 200)`);
-  }
-  try {
-    return await res.json();
-  } catch (err) {
-    throw new Error(`GET ${url} did not return valid JSON: ${err.message}`);
+let failures = 0;
+function check(name, cond, detail) {
+  if (cond) {
+    console.log(`  PASS  ${name}`);
+  } else {
+    console.error(`  FAIL  ${name}${detail ? `\n        ${detail}` : ''}`);
+    failures += 1;
   }
 }
-
-const checks = [
-  {
-    name: '/api/members returns an array',
-    async run() {
-      const data = await getJson('/api/members');
-      if (!Array.isArray(data)) {
-        throw new Error(`expected an array, got ${typeof data}`);
-      }
-    },
-  },
-  {
-    name: '/api/donations/summary has numeric total + byFund object',
-    async run() {
-      const data = await getJson('/api/donations/summary');
-      if (data == null || typeof data !== 'object') {
-        throw new Error(`expected an object, got ${typeof data}`);
-      }
-      if (typeof data.total !== 'number' || Number.isNaN(data.total)) {
-        throw new Error(`expected numeric "total", got ${JSON.stringify(data.total)}`);
-      }
-      if (data.byFund == null || typeof data.byFund !== 'object' || Array.isArray(data.byFund)) {
-        throw new Error(`expected "byFund" object, got ${JSON.stringify(data.byFund)}`);
-      }
-    },
-  },
-  {
-    name: '/api/discipleship/programs returns an array',
-    async run() {
-      const data = await getJson('/api/discipleship/programs');
-      if (!Array.isArray(data)) {
-        throw new Error(`expected an array, got ${typeof data}`);
-      }
-    },
-  },
-];
 
 async function main() {
   console.log(`Smoke testing ${BASE}`);
-  let failures = 0;
-  for (const check of checks) {
-    try {
-      await check.run();
-      console.log(`  PASS  ${check.name}`);
-    } catch (err) {
-      failures += 1;
-      console.error(`  FAIL  ${check.name}\n        ${err.message}`);
-    }
-  }
+
+  // 1) Homepage serves.
+  const home = await fetch(`${BASE}/`);
+  check('homepage returns 200', home.status === 200, `got ${home.status}`);
+
+  // 2) API is protected — no session must be rejected.
+  const noAuth = await fetch(`${BASE}/api/members`);
+  check('unauthenticated /api/members is 401', noAuth.status === 401, `got ${noAuth.status}`);
+
+  // 3) Login issues a session cookie.
+  const login = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+  });
+  check('login returns 200', login.status === 200, `got ${login.status}`);
+  const setCookie = login.headers.get('set-cookie') || '';
+  const cookie = setCookie.split(';')[0];
+  check('login sets tog_session cookie', cookie.startsWith('tog_session='), setCookie.slice(0, 48));
+
+  const authed = { headers: { cookie } };
+
+  // 4) Authenticated data endpoints return the expected shapes.
+  const members = await fetch(`${BASE}/api/members`, authed).then((r) => r.json());
+  check('members is a non-empty array', Array.isArray(members) && members.length > 0);
+
+  const summary = await fetch(`${BASE}/api/donations/summary`, authed).then((r) => r.json());
+  check(
+    'donations summary has numeric total + byFund object',
+    summary &&
+      typeof summary.total === 'number' &&
+      summary.byFund &&
+      typeof summary.byFund === 'object' &&
+      !Array.isArray(summary.byFund),
+  );
+
+  const programs = await fetch(`${BASE}/api/discipleship/programs`, authed).then((r) => r.json());
+  check('programs is an array', Array.isArray(programs));
+
   if (failures > 0) {
-    console.error(`\nSmoke test FAILED: ${failures} of ${checks.length} checks failed.`);
+    console.error(`\nSmoke test FAILED: ${failures} check(s) failed.`);
     process.exit(1);
   }
-  console.log(`\nSmoke test passed: all ${checks.length} checks OK.`);
+  console.log('\nSmoke test passed.');
   process.exit(0);
 }
 
-main();
+main().catch((e) => {
+  console.error('Smoke test error:', e);
+  process.exit(1);
+});
