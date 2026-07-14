@@ -29,10 +29,10 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   reporter: [['list'], ['html', { outputFolder: 'e2e/.report', open: 'never' }]],
-  timeout: 45_000,
-  expect: { timeout: 10_000 },
+  timeout: 25_000,
+  expect: { timeout: 7_000 },
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
