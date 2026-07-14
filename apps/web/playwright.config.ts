@@ -30,6 +30,9 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // Hard cap so a hung/slow remote target can never make the job run forever;
+  // the run always terminates and uploads a report to inspect.
+  globalTimeout: 8 * 60_000,
   reporter: [['list'], ['html', { outputFolder: 'e2e/.report', open: 'never' }]],
   timeout: 25_000,
   expect: { timeout: 7_000 },

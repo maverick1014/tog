@@ -42,7 +42,7 @@ test.describe('培训课程', () => {
     const exportBtn = page.getByRole('button', { name: /导出名单/ });
     if (await exportBtn.isEnabled()) {
       const [download] = await Promise.all([
-        page.waitForEvent('download'),
+        page.waitForEvent('download', { timeout: 15000 }),
         exportBtn.click(),
       ]);
       expect(download.suggestedFilename()).toMatch(/\.xlsx$/);

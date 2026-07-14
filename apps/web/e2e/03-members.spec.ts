@@ -44,7 +44,7 @@ test.describe('成员目录', () => {
   test('导出 Excel 触发下载', async ({ page }) => {
     await page.goto('/members');
     const [download] = await Promise.all([
-      page.waitForEvent('download'),
+      page.waitForEvent('download', { timeout: 15000 }),
       page.getByRole('button', { name: /导出 Excel/ }).click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
