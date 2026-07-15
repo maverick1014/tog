@@ -4,11 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, RoleBadge, Switch, useToast } from '@/components/ui';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { ErrorBanner, Field, Loading, Modal, PasswordInput, RoleBadge, Switch, useConfirm, useToast } from '@/components/ui';
+import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 import { AccountRow, MemberRow } from '@/lib/types';
 import {
   ACCOUNT_ROLE_OPTIONS,
+  ACCOUNT_ROLE_PERMISSIONS,
   ACCOUNT_ROLE_ZH,
   accountRoleClass,
   accountStatusClass,
@@ -19,19 +21,27 @@ import {
 import { AccountRole, AccountStatus, ACCOUNT_ROLE_LABELS } from '@tog/shared';
 
 export default function SettingsPage() {
+  const me = useMe();
+  const isSuperAdmin = me.role === AccountRole.SuperAdmin;
   const toast = useToast();
-  const accounts = useFetch<AccountRow[]>('/accounts');
-  const members = useFetch<MemberRow[]>('/members');
+  const accounts = useFetch<AccountRow[]>(isSuperAdmin ? '/accounts' : null);
+  const members = useFetch<MemberRow[]>(isSuperAdmin ? '/members' : null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [myPwOpen, setMyPwOpen] = useState(false);
 
   usePageChrome({
     title: '用户管理',
     subtitle: '登录账户 · 权限角色 · 安全与偏好',
     action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新建账户
-      </button>
+      <>
+        <button className="btn ghost" onClick={() => setMyPwOpen(true)}>
+          修改我的密码
+        </button>
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新建账户
+        </button>
+      </>
     ),
   });
 
@@ -42,7 +52,28 @@ export default function SettingsPage() {
     accounts.reload();
   };
 
-  if (accounts.loading) return <Loading />;
+  // 用户管理 is super_admin-only; others may still change their own password.
+  if (!isSuperAdmin) {
+    return (
+      <>
+        <div className="empty">仅超级管理员可访问用户管理。</div>
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <button className="btn ghost" onClick={() => setMyPwOpen(true)}>修改我的密码</button>
+        </div>
+        {myPwOpen && (
+          <ChangePasswordModal
+            onClose={() => setMyPwOpen(false)}
+            onSaved={() => {
+              setMyPwOpen(false);
+              toast('密码已更新');
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  if (accounts.initialLoading) return <Loading />;
 
   if (selected) {
     return (
@@ -53,6 +84,11 @@ export default function SettingsPage() {
           reload();
           toast('已保存账户设置');
         }}
+        onDeleted={() => {
+          setDetailId(null);
+          reload();
+          toast('已删除账户');
+        }}
       />
     );
   }
@@ -61,12 +97,34 @@ export default function SettingsPage() {
     <>
       <ErrorBanner message={accounts.error} />
       <div className="hint mb-14">
-        💡 每个登录账户都<strong>关联一位成员档案</strong>。点右上角「＋ 新建账户」选择成员并授予权限；点任一账户可管理其权限、安全与偏好。<br />
-        <span className="faint">注：v1 暂未启用登录鉴权，此处仅维护账户与权限模型，为日后接入 Supabase Auth 预留。</span>
+        💡 每个登录账户都<strong>关联一位成员档案</strong>。点右上角「＋ 新建账户」选择成员、设定登录邮箱与初始密码并授予权限；点任一账户可管理其权限、重设密码与偏好。<br />
+        <span className="faint">登录鉴权已启用：会话由签名 Cookie 保护，密码以 PBKDF2 加盐哈希存储。超级管理员可重设任意账户密码，用户可在「修改我的密码」中自助修改。</span>
       </div>
+      <div className="card mb-14">
+        <div className="card-head">
+          <h3>权限说明</h3>
+          <span className="muted" style={{ fontSize: 12 }}>各权限角色可执行的操作</span>
+        </div>
+        <div className="grid g4">
+          {ACCOUNT_ROLE_OPTIONS.map((r) => (
+            <div
+              key={r}
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}
+            >
+              <span className={`badge ${accountRoleClass(r)}`}>{ACCOUNT_ROLE_ZH[r]}</span>
+              <ul style={{ margin: '9px 0 0', paddingLeft: 16, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                {ACCOUNT_ROLE_PERMISSIONS[r].map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="card" style={{ padding: 6 }}>
         <div className="table-wrap">
-          <table>
+          <table className="stack">
             <thead>
               <tr>
                 <th>账户 · 关联成员</th>
@@ -83,16 +141,16 @@ export default function SettingsPage() {
                 const role = u.member ? memberRoleZh(u.member) : '未分组';
                 return (
                   <tr key={u.id} className="row-click" onClick={() => setDetailId(u.id)}>
-                    <td>
+                    <td data-label="账户 · 关联成员">
                       <strong>{u.member?.full_name ?? '—'}</strong>
                     </td>
-                    <td>
+                    <td data-label="在组身份">
                       <RoleBadge role={role} />
                     </td>
-                    <td><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>
-                    <td className="muted">{u.email}</td>
-                    <td><span className={`badge ${accountStatusClass(u.status)}`}>{accountStatusLabel(u.status)}</span></td>
-                    <td className="muted" style={{ whiteSpace: 'nowrap' }}>{u.last_sign_in_at ? formatDateTime(u.last_sign_in_at) : '从未'}</td>
+                    <td data-label="权限角色"><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>
+                    <td className="muted" data-label="登录邮箱">{u.email}</td>
+                    <td data-label="状态"><span className={`badge ${accountStatusClass(u.status)}`}>{accountStatusLabel(u.status)}</span></td>
+                    <td className="muted" style={{ whiteSpace: 'nowrap' }} data-label="最近登录">{u.last_sign_in_at ? formatDateTime(u.last_sign_in_at) : '从未'}</td>
                     <td style={{ textAlign: 'right' }}><button className="btn ghost sm">管理</button></td>
                   </tr>
                 );
@@ -117,7 +175,29 @@ export default function SettingsPage() {
           }}
         />
       )}
+
+      {myPwOpen && (
+        <ChangePasswordModal
+          onClose={() => setMyPwOpen(false)}
+          onSaved={() => {
+            setMyPwOpen(false);
+            toast('密码已更新');
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function NotifyRow({ title, sub, on, set }: { title: string; sub: string; on: boolean; set: (v: boolean) => void }) {
+  return (
+    <div className="flex-between" style={{ padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
+        <div className="muted" style={{ fontSize: 11.5 }}>{sub}</div>
+      </div>
+      <Switch on={on} onToggle={() => set(!on)} />
+    </div>
   );
 }
 
@@ -125,10 +205,12 @@ function AccountDetail({
   account,
   onBack,
   onSaved,
+  onDeleted,
 }: {
   account: AccountRow;
   onBack: () => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState(account.email);
@@ -137,12 +219,49 @@ function AccountDetail({
   const [twoFactor, setTwoFactor] = useState(account.two_factor);
   const [language, setLanguage] = useState(account.language);
   const [nDisc, setNDisc] = useState(account.notify_discipleship);
-  const [nDon, setNDon] = useState(account.notify_donation);
   const [nWeekly, setNWeekly] = useState(account.notify_weekly);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [pw, setPw] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const memberRole = account.member ? memberRoleZh(account.member) : '未分组';
+
+  const resetPassword = async () => {
+    if (pw.length < 8) {
+      setErr('新密码至少 8 位');
+      return;
+    }
+    setPwBusy(true);
+    setErr(null);
+    try {
+      await api.post(`/accounts/${account.id}/password`, { password: pw });
+      setPw('');
+      toast(`已为 ${account.member?.full_name ?? '该账户'} 重设密码`);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
+  const del = async () => {
+    const ok = await confirm({
+      title: '删除登录账户',
+      message: `删除 ${account.member?.full_name ?? '该成员'} 的登录账户？其成员档案会保留。`,
+      confirmText: '删除账户',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/accounts/${account.id}`);
+      onDeleted();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -155,7 +274,6 @@ function AccountDetail({
         two_factor: twoFactor,
         language,
         notify_discipleship: nDisc,
-        notify_donation: nDon,
         notify_weekly: nWeekly,
       });
       onSaved();
@@ -165,16 +283,6 @@ function AccountDetail({
       setBusy(false);
     }
   };
-
-  const NotifyRow = ({ title, sub, on, set }: { title: string; sub: string; on: boolean; set: (v: boolean) => void }) => (
-    <div className="flex-between" style={{ padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
-        <div className="muted" style={{ fontSize: 11.5 }}>{sub}</div>
-      </div>
-      <Switch on={on} onToggle={() => set(!on)} />
-    </div>
-  );
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -227,17 +335,20 @@ function AccountDetail({
 
       <div className="grid g2 mt-16">
         <div className="card">
-          <h3 style={{ marginBottom: 14 }}>安全</h3>
-          <Field label="当前密码">
-            <input type="password" defaultValue="password" placeholder="••••••••" />
-          </Field>
+          <h3 style={{ marginBottom: 4 }}>安全 · 重设登录密码</h3>
+          <div className="muted" style={{ fontSize: 11.5, marginBottom: 12 }}>
+            仅超级管理员可为其他账户直接重设密码；无需知道旧密码。
+          </div>
           <Field label="新密码">
-            <input type="password" placeholder="至少 8 位" />
+            <PasswordInput value={pw} onChange={setPw} placeholder="至少 8 位" autoComplete="new-password" />
           </Field>
-          <div className="flex-between" style={{ paddingTop: 6, borderTop: '1px solid var(--border)', marginTop: 4 }}>
+          <button className="btn ghost block" onClick={resetPassword} disabled={pwBusy || pw.length < 8}>
+            {pwBusy ? '重设中…' : '重设该账户密码'}
+          </button>
+          <div className="flex-between" style={{ paddingTop: 12, borderTop: '1px solid var(--border)', marginTop: 12 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>两步验证（2FA）</div>
-              <div className="muted" style={{ fontSize: 11.5 }}>登录时需短信验证码</div>
+              <div className="muted" style={{ fontSize: 11.5 }}>登录时需短信验证码（规划中）</div>
             </div>
             <Switch on={twoFactor} onToggle={() => setTwoFactor(!twoFactor)} />
           </div>
@@ -253,16 +364,12 @@ function AccountDetail({
               <option value="ms">Bahasa Melayu</option>
             </select>
           </Field>
-          <Field label="操作">
-            <button className="btn ghost block">发送重置密码邮件</button>
-          </Field>
         </div>
       </div>
 
       <div className="card mt-16">
         <h3 style={{ marginBottom: 6 }}>通知</h3>
         <NotifyRow title="门训进度更新" sub="带领者提交每日守望时通知" on={nDisc} set={setNDisc} />
-        <NotifyRow title="奉献记录" sub="有新奉献录入时通知" on={nDon} set={setNDon} />
         <div className="flex-between" style={{ padding: '11px 0' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>每周概览邮件</div>
@@ -270,6 +377,23 @@ function AccountDetail({
           </div>
           <Switch on={nWeekly} onToggle={() => setNWeekly(!nWeekly)} />
         </div>
+      </div>
+
+      <div
+        className="flex-between flex-wrap mt-16"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: '16px 20px' }}
+      >
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--crit)' }}>删除账户</div>
+          <div className="muted" style={{ fontSize: 11.5 }}>移除此登录账户 · 不会删除其成员档案</div>
+        </div>
+        <button
+          className="btn"
+          style={{ background: 'transparent', color: 'var(--crit)', border: '1px solid var(--crit-soft)' }}
+          onClick={del}
+        >
+          删除账户
+        </button>
       </div>
 
       <div className="flex-between flex-wrap mt-16">
@@ -295,12 +419,17 @@ function AddAccountModal({
   const [memberId, setMemberId] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AccountRole>(AccountRole.Coworker);
+  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const save = async () => {
     if (!memberId || !email.trim()) {
       setErr('请选择成员并填写登录邮箱');
+      return;
+    }
+    if (password.length < 8) {
+      setErr('请设定至少 8 位的初始密码');
       return;
     }
     setSaving(true);
@@ -310,6 +439,7 @@ function AddAccountModal({
         member_id: memberId,
         email: email.trim(),
         account_role: role,
+        password,
       });
       onSaved();
     } catch (e) {
@@ -347,6 +477,9 @@ function AddAccountModal({
           </select>
         </Field>
       </div>
+      <Field label="初始密码">
+        <PasswordInput value={password} onChange={setPassword} placeholder="至少 8 位，可稍后由用户自行修改" autoComplete="new-password" />
+      </Field>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
         <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '创建账户'}</button>

@@ -100,7 +100,39 @@ insert into discipleship_progress (pair_id, day_number, completed)
   select 'f0000000-0000-0000-0000-000000000007', g, true from generate_series(1,8) g;
 
 -- Login accounts (用户管理). Each is tied to a member profile.
-insert into app_users (member_id, email, account_role, status, two_factor, last_sign_in_at) values
-  ('a0000000-0000-0000-0000-000000000001', 'john@grace.org',  'super_admin', 'active',   true,  now() - interval '2 hours'),
-  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day'),
-  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days');
+-- Demo password for all three accounts: grace2026 (PBKDF2-HMAC-SHA256).
+-- Only the bootstrap super-admin ships with a password (grace2026) so the app
+-- and the deploy smoke-test always have a way in — change it after first login.
+-- Every other account starts WITHOUT a password (password_hash = null) and
+-- cannot log in until a super-admin sets one via 用户管理 → 重设密码.
+insert into app_users (member_id, email, account_role, status, two_factor, last_sign_in_at, password_hash) values
+  ('a0000000-0000-0000-0000-000000000001', 'john@grace.org',  'super_admin', 'active',   true,  now() - interval '2 hours',  'pbkdf2$100000$fG6H3PSCMih3zJdJcGaL0g$s2eis5B-IpbzVEADzFyfWjDDHRtMzVZor1orVQ4vYbs'),
+  ('a0000000-0000-0000-0000-000000000002', 'mary@grace.org',  'coworker',    'active',   false, now() - interval '1 day',   null),
+  ('a0000000-0000-0000-0000-000000000003', 'peter@grace.org', 'readonly',    'disabled', false, now() - interval '11 days', null);
+
+-- Life-group weekly meetings + attendance.
+insert into group_meetings (id, group_id, meeting_date) values
+  ('b1000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','2026-06-27'),
+  ('b1000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','2026-07-04'),
+  ('b1000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','2026-07-11'),
+  ('b2000000-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222222','2026-07-03'),
+  ('b2000000-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','2026-07-10'),
+  ('b3000000-0000-0000-0000-000000000001','33333333-3333-3333-3333-333333333333','2026-07-05'),
+  ('b3000000-0000-0000-0000-000000000002','33333333-3333-3333-3333-333333333333','2026-07-12');
+
+insert into group_attendance (meeting_id, member_id, status) values
+  ('b1000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','present'),
+  ('b1000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000003','present'),
+  ('b1000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000004','excused'),
+  ('b1000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000011','present'),
+  ('b1000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000012','absent'),
+  ('b1000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002','present'),
+  ('b1000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000003','present'),
+  ('b1000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000004','present'),
+  ('b1000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000002','present'),
+  ('b1000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000003','excused'),
+  ('b2000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000005','present'),
+  ('b2000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000006','present'),
+  ('b2000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000007','absent'),
+  ('b3000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000008','present'),
+  ('b3000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000009','present');

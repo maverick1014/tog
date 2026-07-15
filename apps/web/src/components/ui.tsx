@@ -32,12 +32,19 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function Avatar({
   name,
+  url,
   size = 'sm',
 }: {
   name: string | null | undefined;
+  url?: string | null;
   size?: 'sm' | 'md' | 'lg';
 }) {
-  return <div className={`avatar ${size === 'sm' ? '' : size}`}>{initialOf(name)}</div>;
+  const cls = `avatar ${size === 'sm' ? '' : size}`;
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img className={cls} src={url} alt={name ?? ''} style={{ objectFit: 'cover' }} />;
+  }
+  return <div className={cls}>{initialOf(name)}</div>;
 }
 
 export function Badge({
@@ -175,6 +182,116 @@ export function Field({
       {children}
     </div>
   );
+}
+
+/* -------------------------------------------------------------------------
+ * Password input with a show/hide toggle
+ * ---------------------------------------------------------------------- */
+
+export function PasswordInput({
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+  autoFocus,
+  name,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+  autoFocus?: boolean;
+  name?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="pw-field">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        name={name}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+      />
+      <button
+        type="button"
+        className="pw-toggle"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? '隐藏密码' : '显示密码'}
+        title={show ? '隐藏密码' : '显示密码'}
+      >
+        {show ? '🙈' : '👁'}
+      </button>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Confirm dialog — a styled replacement for window.confirm()
+ * ---------------------------------------------------------------------- */
+
+type ConfirmOpts = {
+  title?: string;
+  message: ReactNode;
+  confirmText?: string;
+  cancelText?: string;
+  danger?: boolean;
+};
+
+const ConfirmContext = createContext<(o: ConfirmOpts) => Promise<boolean>>(() => Promise.resolve(false));
+
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<
+    (ConfirmOpts & { resolve: (v: boolean) => void }) | null
+  >(null);
+
+  const confirm = useCallback((o: ConfirmOpts) => {
+    return new Promise<boolean>((resolve) => setState({ ...o, resolve }));
+  }, []);
+
+  const close = (v: boolean) => {
+    state?.resolve(v);
+    setState(null);
+  };
+
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      {state && (
+        <div className="modal-backdrop" onClick={() => close(false)}>
+          <div className="modal narrow" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            {state.title && <h3>{state.title}</h3>}
+            <div style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.7, margin: '2px 0 4px' }}>
+              {state.message}
+            </div>
+            <div className="modal-actions">
+              <button className="btn ghost" onClick={() => close(false)}>
+                {state.cancelText ?? '取消'}
+              </button>
+              <button
+                className="btn"
+                style={
+                  state.danger
+                    ? { background: 'transparent', color: 'var(--crit)', border: '1px solid var(--crit-soft)' }
+                    : undefined
+                }
+                onClick={() => close(true)}
+                autoFocus
+              >
+                {state.confirmText ?? '确定'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ConfirmContext.Provider>
+  );
+}
+
+export function useConfirm() {
+  return useContext(ConfirmContext);
 }
 
 /* -------------------------------------------------------------------------

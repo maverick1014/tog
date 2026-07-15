@@ -4,7 +4,6 @@ import {
   AccountStatus,
   AttendanceStatus,
   ChurchRole,
-  DonationMethod,
   EnrollmentStatus,
   EventType,
   Gender,
@@ -44,6 +43,9 @@ export const ROLE_ORDER = [
   '普通成员',
   '新成员',
 ] as const;
+
+/** Member-directory filter chips: the seven ranks plus 未分组 (unassigned). */
+export const MEMBER_ROLE_FILTERS = [...ROLE_ORDER, '未分组'] as const;
 
 /**
  * Per-role tag palette — matches the Claude Design `roleTags` exactly. Each
@@ -127,42 +129,6 @@ export const ATTENDANCE_LABELS: Record<string, string> = {
 };
 
 /* -------------------------------------------------------------------------
- * Donations
- * ---------------------------------------------------------------------- */
-
-export const DONATION_FUNDS = ['十一奉献', '主日奉献', '建堂', '宣教', '感恩'];
-
-export function fundBadgeClass(fund: string): string {
-  switch (fund) {
-    case '十一奉献':
-      return 'b-brand';
-    case '主日奉献':
-      return 'b-accent';
-    case '建堂':
-      return 'b-good';
-    case '宣教':
-      return 'b-warn';
-    default:
-      return 'b-gray';
-  }
-}
-
-export const DONATION_METHOD_LABELS: Record<string, string> = {
-  [DonationMethod.Cash]: '现金',
-  [DonationMethod.BankTransfer]: '银行转账',
-  [DonationMethod.Card]: '刷卡',
-  [DonationMethod.Online]: '线上',
-  [DonationMethod.Other]: '其他',
-};
-
-export const DONATION_METHOD_OPTIONS = [
-  DonationMethod.Cash,
-  DonationMethod.BankTransfer,
-  DonationMethod.Card,
-  DonationMethod.Online,
-];
-
-/* -------------------------------------------------------------------------
  * Trainings & enrollment
  * ---------------------------------------------------------------------- */
 
@@ -221,6 +187,28 @@ export function pairStatusClass(status: string): string {
  * ---------------------------------------------------------------------- */
 
 export const ACCOUNT_ROLE_ZH = ACCOUNT_ROLE_LABELS;
+
+/** What each permission role can do — shown in 用户管理 for clarity. */
+export const ACCOUNT_ROLE_PERMISSIONS: Record<AccountRole, string[]> = {
+  [AccountRole.SuperAdmin]: [
+    '全部权限',
+    '用户与权限管理',
+    '系统设置',
+    '所有牧养模块的增 / 删 / 改 / 查',
+  ],
+  [AccountRole.Admin]: [
+    '成员 / 小组 / 聚会 / 奉献 / 培训 / 门训 的增 / 删 / 改 / 查',
+    '在小组管理中分配身份',
+    '不可管理登录账户与权限',
+  ],
+  [AccountRole.Coworker]: [
+    '点名 / 录入奉献 / 培训出席 / 门训进度',
+    '编辑成员基本资料',
+    '不可删除记录',
+    '不可管理账户或更改身份分配',
+  ],
+  [AccountRole.ReadOnly]: ['仅查看所有数据', '不可进行任何修改'],
+};
 
 export const ACCOUNT_ROLE_OPTIONS = [
   AccountRole.SuperAdmin,

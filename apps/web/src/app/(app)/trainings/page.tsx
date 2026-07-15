@@ -4,28 +4,34 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Loading, useToast } from '@/components/ui';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { ErrorBanner, Loading, useConfirm, useToast } from '@/components/ui';
 import { TrainingModal } from '@/components/TrainingModal';
+import { can } from '@/lib/perms';
 import { MemberRow, TrainingRow } from '@/lib/types';
 import { categoryBadgeClass, formatDate } from '@/lib/labels';
 
 export default function TrainingsPage() {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
+  const perms = can(useMe().role);
   const trainings = useFetch<TrainingRow[]>('/trainings');
   const members = useFetch<MemberRow[]>('/members');
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '培训课程',
-    subtitle: '课程目录 · 报名审核 · 核对名单',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新增课程
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '培训课程',
+      subtitle: '课程目录 · 报名审核 · 核对名单',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新增课程
+        </button>
+      ) : undefined,
+    },
+    [perms.write],
+  );
 
   const now = new Date();
   const list = trainings.data ?? [];
@@ -42,13 +48,19 @@ export default function TrainingsPage() {
   }, [list]);
 
   const del = async (t: TrainingRow) => {
-    if (!confirm(`删除「${t.name}」？报名与名单记录将一并移除。`)) return;
+    const ok = await confirm({
+      title: '删除课程',
+      message: `删除「${t.name}」？报名与名单记录将一并移除。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     await api.delete(`/trainings/${t.id}`);
     trainings.reload();
     toast('已删除课程');
   };
 
-  const Cards = ({ items, faded }: { items: TrainingRow[]; faded?: boolean }) => (
+  const renderCards = (items: TrainingRow[], faded?: boolean) => (
     <div className="grid g3">
       {items.map((t) => (
         <div className="card" key={t.id} style={{ display: 'flex', flexDirection: 'column', opacity: faded ? 0.86 : 1 }}>
@@ -70,15 +82,15 @@ export default function TrainingsPage() {
           <div className="grow" />
           <div className="flex gap-8 mt-14">
             <button className="btn sm grow" onClick={() => router.push(`/trainings/${t.id}`)}>名单</button>
-            <button className="btn ghost sm" onClick={() => router.push(`/trainings/${t.id}`)}>编辑</button>
-            <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => del(t)}>删除</button>
+            {perms.write && <button className="btn ghost sm" onClick={() => router.push(`/trainings/${t.id}`)}>编辑</button>}
+            {perms.delete && <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => del(t)}>删除</button>}
           </div>
         </div>
       ))}
     </div>
   );
 
-  if (trainings.loading) return <Loading />;
+  if (trainings.initialLoading) return <Loading />;
 
   return (
     <>
@@ -88,13 +100,13 @@ export default function TrainingsPage() {
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--good)', display: 'inline-block' }} />
         进行中课程 <span className="faint" style={{ fontWeight: 400 }}>· 开放报名</span>
       </div>
-      {active.length ? <Cards items={active} /> : <div className="empty">暂无进行中的课程 · 点右上角「＋ 新增课程」开设</div>}
+      {active.length ? renderCards(active) : <div className="empty">暂无进行中的课程 · 点右上角「＋ 新增课程」开设</div>}
 
       <div className="section-label" style={{ margin: '28px 0 14px' }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--faint)', display: 'inline-block' }} />
         已结束 / 已截止 <span className="faint" style={{ fontWeight: 400 }}>· 已完成的课程</span>
       </div>
-      {ended.length ? <Cards items={ended} faded /> : <div className="empty">暂无已结束的课程</div>}
+      {ended.length ? renderCards(ended, true) : <div className="empty">暂无已结束的课程</div>}
 
       {addOpen && (
         <TrainingModal

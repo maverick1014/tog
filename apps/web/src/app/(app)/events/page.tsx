@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { can } from '@/lib/perms';
 import { EventDetail, EventRow, MemberRow } from '@/lib/types';
 import {
   ATTENDANCE_LABELS,
@@ -17,31 +18,49 @@ import { AttendanceStatus, EventType, MemberStatus } from '@tog/shared';
 
 export default function EventsPage() {
   const toast = useToast();
+  const confirm = useConfirm();
+  const perms = can(useMe().role);
   const events = useFetch<EventRow[]>('/events');
   const members = useFetch<MemberRow[]>('/members');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<EventRow | null>(null);
 
-  usePageChrome({
-    title: '聚会与出席',
-    subtitle: '崇拜 · 祷告会 · 团契 · 逐一点名',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新增聚会
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '聚会与出席',
+      subtitle: '崇拜 · 祷告会 · 团契 · 逐一点名',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新增聚会
+        </button>
+      ) : undefined,
+    },
+    [perms.write],
+  );
 
   const list = events.data ?? [];
   const now = new Date();
   const sorted = [...list].sort((a, b) => +new Date(b.starts_at) - +new Date(a.starts_at));
 
-  useEffect(() => {
-    if (!activeId && sorted.length) setActiveId(sorted[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events.data]);
+  const delEvent = async (e: EventRow) => {
+    const ok = await confirm({
+      title: '删除聚会',
+      message: `删除「${e.title}」及其出席记录？`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/events/${e.id}`);
+      events.reload();
+      toast('已删除聚会');
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  };
 
-  if (events.loading) return <Loading />;
+  if (events.initialLoading) return <Loading />;
 
   return (
     <>
@@ -64,12 +83,15 @@ export default function EventsPage() {
               </div>
               <div className="flex-between mt-14">
                 <span className="muted" style={{ fontSize: 12 }}>{e.description ?? ''}</span>
-                <button
-                  className={`btn sm ${activeId === e.id ? '' : 'ghost'}`}
-                  onClick={() => setActiveId(e.id)}
-                >
-                  点名
-                </button>
+                <div className="flex gap-6">
+                  {perms.write && (
+                    <button className="btn ghost sm" onClick={() => setEditing(e)}>编辑</button>
+                  )}
+                  {perms.delete && (
+                    <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => delEvent(e)}>删除</button>
+                  )}
+                  <button className="btn sm" onClick={() => setActiveId(e.id)}>点名</button>
+                </div>
               </div>
             </div>
           );
@@ -82,18 +104,26 @@ export default function EventsPage() {
           key={activeId}
           eventId={activeId}
           members={(members.data ?? []).filter((m) => m.status === MemberStatus.Active)}
-          onSaved={() => toast('已保存点名')}
+          onClose={() => setActiveId(null)}
+          onSaved={() => {
+            toast('已保存点名');
+            setActiveId(null);
+          }}
         />
       )}
 
-      {addOpen && (
-        <AddEventModal
-          onClose={() => setAddOpen(false)}
-          onSaved={(id) => {
+      {(addOpen || editing) && (
+        <EventModal
+          event={editing}
+          onClose={() => {
             setAddOpen(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setAddOpen(false);
+            setEditing(null);
             events.reload();
-            setActiveId(id);
-            toast('已新增聚会');
+            toast(editing ? '已更新聚会' : '已新增聚会');
           }}
         />
       )}
@@ -104,10 +134,12 @@ export default function EventsPage() {
 function AttendancePanel({
   eventId,
   members,
+  onClose,
   onSaved,
 }: {
   eventId: string;
   members: MemberRow[];
+  onClose: () => void;
   onSaved: () => void;
 }) {
   const detail = useFetch<EventDetail>(`/events/${eventId}`);
@@ -143,67 +175,86 @@ function AttendancePanel({
     }
   };
 
-  if (detail.loading) return <div className="card mt-16"><Loading /></div>;
-
   return (
-    <div className="card mt-16">
+    <Modal onClose={onClose} size="wide">
       {err && <ErrorBanner message={err} />}
-      <div className="card-head">
+      <div className="flex-between" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h3>{detail.data?.title} · 出席点名</h3>
+          <h3 className="serif" style={{ margin: 0, fontSize: 18 }}>{detail.data?.title ?? '出席点名'} · 出席点名</h3>
           <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
             逐一标记出席 / 请假 / 缺席，完成后一次保存
           </div>
         </div>
-        <button className="btn accent" onClick={save} disabled={saving}>
+        <button className="icon-btn" onClick={onClose} title="关闭">✕</button>
+      </div>
+
+      {detail.loading ? (
+        <div style={{ padding: 24 }}><Loading /></div>
+      ) : (
+        <div style={{ maxHeight: '54vh', overflowY: 'auto', margin: '14px 0 4px' }}>
+          {members.map((m) => {
+            const cur = marks[m.id];
+            return (
+              <div key={m.id} className="flex-between" style={{ padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
+                <strong>{m.full_name}</strong>
+                <div className="seg">
+                  <button
+                    className={cur === AttendanceStatus.Present ? 'on-good' : ''}
+                    onClick={() => set(m.id, AttendanceStatus.Present)}
+                  >
+                    {ATTENDANCE_LABELS[AttendanceStatus.Present]}
+                  </button>
+                  <button
+                    className={cur === AttendanceStatus.Excused ? 'on-warn' : ''}
+                    onClick={() => set(m.id, AttendanceStatus.Excused)}
+                  >
+                    {ATTENDANCE_LABELS[AttendanceStatus.Excused]}
+                  </button>
+                  <button
+                    className={cur === AttendanceStatus.Absent ? 'on-crit' : ''}
+                    onClick={() => set(m.id, AttendanceStatus.Absent)}
+                  >
+                    {ATTENDANCE_LABELS[AttendanceStatus.Absent]}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {members.length === 0 && <div className="faint" style={{ textAlign: 'center', padding: 20 }}>暂无在册成员可点名。</div>}
+        </div>
+      )}
+
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onClose}>关闭</button>
+        <button className="btn accent" onClick={save} disabled={saving || detail.loading}>
           保存点名（{marked}）
         </button>
       </div>
-      {members.map((m) => {
-        const cur = marks[m.id];
-        return (
-          <div key={m.id} className="flex-between" style={{ padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
-            <strong>{m.full_name}</strong>
-            <div className="seg">
-              <button
-                className={cur === AttendanceStatus.Present ? 'on-good' : ''}
-                onClick={() => set(m.id, AttendanceStatus.Present)}
-              >
-                {ATTENDANCE_LABELS[AttendanceStatus.Present]}
-              </button>
-              <button
-                className={cur === AttendanceStatus.Excused ? 'on-warn' : ''}
-                onClick={() => set(m.id, AttendanceStatus.Excused)}
-              >
-                {ATTENDANCE_LABELS[AttendanceStatus.Excused]}
-              </button>
-              <button
-                className={cur === AttendanceStatus.Absent ? 'on-crit' : ''}
-                onClick={() => set(m.id, AttendanceStatus.Absent)}
-              >
-                {ATTENDANCE_LABELS[AttendanceStatus.Absent]}
-              </button>
-            </div>
-          </div>
-        );
-      })}
-      {members.length === 0 && <div className="faint" style={{ textAlign: 'center', padding: 20 }}>暂无在册成员可点名。</div>}
-    </div>
+    </Modal>
   );
 }
 
-function AddEventModal({
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function EventModal({
+  event,
   onClose,
   onSaved,
 }: {
+  event: EventRow | null;
   onClose: () => void;
-  onSaved: (id: string) => void;
+  onSaved: () => void;
 }) {
   const [form, setForm] = useState({
-    title: '',
-    event_type: EventType.Service as EventType,
-    location: '',
-    starts_at: '',
+    title: event?.title ?? '',
+    event_type: (event?.event_type ?? EventType.Service) as EventType,
+    location: event?.location ?? '',
+    starts_at: toLocalInput(event?.starts_at ?? null),
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -216,13 +267,15 @@ function AddEventModal({
     setSaving(true);
     setErr(null);
     try {
-      const ev = await api.post<EventRow>('/events', {
+      const payload = {
         title: form.title.trim(),
         event_type: form.event_type,
-        location: form.location || undefined,
+        location: form.location || null,
         starts_at: new Date(form.starts_at).toISOString(),
-      });
-      onSaved(ev.id);
+      };
+      if (event) await api.patch(`/events/${event.id}`, payload);
+      else await api.post('/events', payload);
+      onSaved();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -231,7 +284,7 @@ function AddEventModal({
   };
 
   return (
-    <Modal title="新增聚会" onClose={onClose}>
+    <Modal title={event ? '编辑聚会' : '新增聚会'} onClose={onClose}>
       {err && <ErrorBanner message={err} />}
       <Field label="标题">
         <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="例如：周三祷告会" />

@@ -1,11 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { PairProgressModal } from '@/components/PairProgressModal';
+import { can } from '@/lib/perms';
 import { MemberRow, OverviewRow, PairRow, ProgramRow } from '@/lib/types';
 import {
   memberRoleZh,
@@ -28,8 +29,9 @@ interface Node {
 }
 
 export default function DiscipleshipPage() {
-  const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
+  const perms = can(useMe().role);
   const programs = useFetch<ProgramRow[]>('/discipleship/programs');
   const programId = programs.data?.[0]?.id;
   const pairs = useFetch<PairRow[]>('/discipleship/pairs');
@@ -40,17 +42,39 @@ export default function DiscipleshipPage() {
 
   const [filter, setFilter] = useState<Filter>('active');
   const [popup, setPopup] = useState<Node | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '四十天守望',
-    subtitle: '四十天一对一守望 · 世代培育 · 牧者实时总览',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)} disabled={!programId}>
-        ＋ 新增对子
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '四十天守望',
+      subtitle: '四十天一对一守望 · 世代培育 · 牧者实时总览',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)} disabled={!programId}>
+          ＋ 新增配对
+        </button>
+      ) : undefined,
+    },
+    [perms.write, programId],
+  );
+
+  const delPair = async (n: Node) => {
+    const ok = await confirm({
+      title: '删除配对',
+      message: `删除 ${n.pair.trainee?.full_name} ← ${n.pair.mentor?.full_name} 的配对？其守望进度记录将一并移除。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/discipleship/pairs/${n.pair.id}`);
+      pairs.reload();
+      overview.reload();
+      toast('已删除配对');
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
 
   const ovByPair = useMemo(() => {
     const m = new Map<string, OverviewRow>();
@@ -94,15 +118,76 @@ export default function DiscipleshipPage() {
   const doneList = nodes.filter((n) => classify(n) === 'done');
   const pendingList = nodes.filter((n) => classify(n) === 'pending');
 
-  const copyLink = (token: string) => {
-    const link = `${window.location.origin}/d/${token}`;
-    navigator.clipboard?.writeText(link).then(
-      () => toast('链接已复制'),
-      () => toast(link),
-    );
-  };
+  const renderForest = (full = false) => (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        marginTop: 16,
+        ...(full ? { flex: 1, minHeight: 0 } : {}),
+      }}
+    >
+      {forest.map((tree, ti) => (
+        <div
+          key={ti}
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            background: 'var(--surface-2)',
+            padding: '12px 14px',
+            ...(full ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}),
+          }}
+        >
+          <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            <strong className="serif" style={{ fontSize: 14, color: 'var(--ink)' }}>{tree.rootName}</strong>
+            {' · '}{tree.rootRole} · 起点
+          </div>
+          <div className="table-wrap" style={full ? { flex: 1, overflow: 'auto' } : undefined}>
+            <div style={{ position: 'relative', width: tree.width, height: tree.height, minWidth: '100%' }}>
+              <svg width={tree.width} height={tree.height} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+                <path d={tree.path} fill="none" stroke="var(--border)" strokeWidth={1.5} />
+              </svg>
+              {tree.nodes.map((tn) => (
+                <div
+                  key={tn.id}
+                  onClick={tn.node ? () => setPopup(tn.node!) : undefined}
+                  style={{
+                    position: 'absolute',
+                    left: tn.left,
+                    top: tn.top,
+                    width: NODEW,
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    background: 'var(--surface)',
+                    padding: '9px 12px',
+                    cursor: tn.node ? 'pointer' : 'default',
+                    boxShadow: 'var(--shadow)',
+                  }}
+                >
+                  <div className="flex-between gap-6">
+                    <strong className="serif" style={{ fontSize: 13.5 }}>{tn.name}</strong>
+                    <span className="dot" style={{ background: roleDot(tn.role) }} />
+                  </div>
+                  <span className="badge" style={{ ...roleTagStyle(tn.role), fontSize: 10.5, marginTop: 3 }}>{tn.role}</span>
+                  {tn.node ? (
+                    <div className="flex items-center gap-6" style={{ marginTop: 7 }}>
+                      <div className="bar thin"><span style={{ width: `${tn.node.pct}%` }} /></div>
+                      <span className="faint" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{tn.node.days}/{tn.node.total}</span>
+                    </div>
+                  ) : (
+                    <div className="faint" style={{ fontSize: 10, marginTop: 7 }}>牧者 · 起点</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
-  if (pairs.loading || programs.loading) return <Loading />;
+  if (pairs.initialLoading || programs.initialLoading) return <Loading />;
 
   if (!programId) {
     return <div className="empty">尚未建立守望计划。请先在数据库中创建 discipleship_programs 记录。</div>;
@@ -129,65 +214,19 @@ export default function DiscipleshipPage() {
                 {f === 'active' ? '在训' : f === 'done' ? '已出师' : '待开始'} {counts[f]}
               </button>
             ))}
+            {filter === 'active' && forest.length > 0 && (
+              <button className="chip" onClick={() => setFullscreen(true)} title="全屏查看">
+                ⛶ 全屏
+              </button>
+            )}
           </div>
         </div>
 
         {filter === 'active' &&
           (forest.length === 0 ? (
-            <div className="empty">目前没有进行中的对子。点右上角「＋ 新增对子」开始接棒。</div>
+            <div className="empty">目前没有进行中的配对。点右上角「＋ 新增配对」开始接棒。</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
-              {forest.map((tree, ti) => (
-                <div
-                  key={ti}
-                  style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-2)', padding: '12px 14px' }}
-                >
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-                    <strong className="serif" style={{ fontSize: 14, color: 'var(--ink)' }}>{tree.rootName}</strong>
-                    {' · '}{tree.rootRole} · 起点
-                  </div>
-                  <div className="table-wrap">
-                    <div style={{ position: 'relative', width: tree.width, height: tree.height, minWidth: '100%' }}>
-                      <svg width={tree.width} height={tree.height} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
-                        <path d={tree.path} fill="none" stroke="var(--border)" strokeWidth={1.5} />
-                      </svg>
-                      {tree.nodes.map((tn) => (
-                        <div
-                          key={tn.id}
-                          onClick={tn.node ? () => setPopup(tn.node!) : undefined}
-                          style={{
-                            position: 'absolute',
-                            left: tn.left,
-                            top: tn.top,
-                            width: 152,
-                            border: '1px solid var(--border)',
-                            borderRadius: 10,
-                            background: 'var(--surface)',
-                            padding: '9px 12px',
-                            cursor: tn.node ? 'pointer' : 'default',
-                            boxShadow: 'var(--shadow)',
-                          }}
-                        >
-                          <div className="flex-between gap-6">
-                            <strong className="serif" style={{ fontSize: 13.5 }}>{tn.name}</strong>
-                            <span className="dot" style={{ background: roleDot(tn.role) }} />
-                          </div>
-                          <span className="badge" style={{ ...roleTagStyle(tn.role), fontSize: 10.5, marginTop: 3 }}>{tn.role}</span>
-                          {tn.node ? (
-                            <div className="flex items-center gap-6" style={{ marginTop: 7 }}>
-                              <div className="bar thin"><span style={{ width: `${tn.node.pct}%` }} /></div>
-                              <span className="faint" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{tn.node.days}/{tn.node.total}</span>
-                            </div>
-                          ) : (
-                            <div className="faint" style={{ fontSize: 10, marginTop: 7 }}>牧者 · 起点</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            renderForest(false)
           ))}
 
         {filter === 'done' && <DiscList list={doneList} kind="done" onOpen={setPopup} />}
@@ -199,15 +238,16 @@ export default function DiscipleshipPage() {
         <div className="card-head">
           <div>
             <h3>牧者总览</h3>
-            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>点「进度」查看 40 天详情 · 点「表单」复制带领者填写链接</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>点「进度」查看 40 天详情与链接 · 点「表单」直接打开填写页</div>
           </div>
           <span className="badge b-good">● 实时</span>
         </div>
-        <div className="table-wrap">
+        {/* Desktop — table */}
+        <div className="table-wrap only-desktop">
           <table>
             <thead>
               <tr>
-                <th>对子（被带领 ← 带领）</th>
+                <th>配对（被带领 ← 带领）</th>
                 <th style={{ width: 200 }}>进度</th>
                 <th>状态</th>
                 <th />
@@ -228,21 +268,93 @@ export default function DiscipleshipPage() {
                   </td>
                   <td><span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span></td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn ghost sm" style={{ marginRight: 6 }} onClick={() => router.push(`/discipleship/pairs/${n.pair.id}`)}>进度</button>
-                    <button className="btn ghost sm" style={{ color: 'var(--brand)' }} onClick={() => setPopup(n)}>🔗 表单</button>
+                    <button className="btn ghost sm" style={{ marginRight: 6 }} onClick={() => setPopup(n)}>进度</button>
+                    <button className="btn ghost sm" style={{ color: 'var(--brand)', marginRight: 6 }} onClick={() => window.open(`/d/${n.pair.form_token}`, '_blank')}>🔗 表单</button>
+                    {perms.delete && (
+                      <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => delPair(n)}>删除</button>
+                    )}
                   </td>
                 </tr>
               ))}
               {nodes.length === 0 && (
-                <tr><td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无对子。</td></tr>
+                <tr><td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无配对。</td></tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Mobile — list tiles: 被带领 ← 带领 + 表单, then progress · status */}
+        <div className="only-mobile" style={{ marginTop: 4 }}>
+          {nodes.map((n) => (
+            <div key={n.pair.id} className="mtile" onClick={() => setPopup(n)}>
+              <div className="mtile-row1">
+                <div style={{ minWidth: 0 }}>
+                  <strong>{n.pair.trainee?.full_name}</strong>
+                  <span className="faint"> ← {n.pair.mentor?.full_name}</span>
+                </div>
+                <div className="flex gap-10" style={{ flexShrink: 0 }}>
+                  <button
+                    className="mtile-cta"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`/d/${n.pair.form_token}`, '_blank');
+                    }}
+                  >
+                    🔗 表单
+                  </button>
+                  {perms.delete && (
+                    <button
+                      className="mtile-cta"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--crit)' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        delPair(n);
+                      }}
+                    >
+                      删除
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="mtile-line" style={{ marginTop: 9 }}>
+                <div className="bar" style={{ flex: 1 }}><span style={{ width: `${n.pct}%` }} /></div>
+                <span className="pct" style={{ whiteSpace: 'nowrap' }}>{n.days}/{n.total}</span>
+                <span className={`badge ${pairStatusClass(n.pair.status)}`}>{PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status}</span>
+              </div>
+            </div>
+          ))}
+          {nodes.length === 0 && (
+            <div className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无配对。</div>
+          )}
+        </div>
       </div>
 
       {popup && (
-        <ProgressPopup node={popup} onClose={() => setPopup(null)} onCopy={copyLink} onOpenForm={(tk) => window.open(`/d/${tk}`, '_blank')} onDetail={(id) => router.push(`/discipleship/pairs/${id}`)} />
+        <PairProgressModal pairId={popup.pair.id} onClose={() => setPopup(null)} />
+      )}
+
+      {fullscreen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 90,
+            background: 'var(--paper)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '18px 22px 22px',
+          }}
+        >
+          <div className="flex-between" style={{ paddingBottom: 12 }}>
+            <div>
+              <h3 className="serif" style={{ margin: 0, fontSize: 18 }}>培育链 · 接棒图</h3>
+              <div className="muted" style={{ fontSize: 12 }}>世代培育树 · 全屏查看</div>
+            </div>
+            <button className="icon-btn" onClick={() => setFullscreen(false)} title="退出全屏">✕</button>
+          </div>
+          {renderForest(true)}
+        </div>
       )}
 
       {addOpen && programId && (
@@ -255,7 +367,7 @@ export default function DiscipleshipPage() {
             setAddOpen(false);
             pairs.reload();
             overview.reload();
-            toast('已新增对子');
+            toast('已新增配对');
           }}
         />
       )}
@@ -282,10 +394,10 @@ interface Tree {
   path: string;
 }
 
-const NODEW = 152;
-const NODEH = 66;
-const GAPX = 56;
-const ROWH = 88;
+const NODEW = 160;
+const NODEH = 80;
+const GAPX = 96;
+const ROWH = 128;
 
 function buildForest(nodes: Node[]): Tree[] {
   const kids = new Map<string, { id: string; node: Node }[]>();
@@ -379,7 +491,7 @@ function DiscList({
   if (list.length === 0) {
     return (
       <div className="empty" style={{ marginTop: 16 }}>
-        {kind === 'done' ? '尚无出师者。' : '没有待开始的对子。'}
+        {kind === 'done' ? '尚无出师者。' : '没有待开始的配对。'}
       </div>
     );
   }
@@ -419,61 +531,6 @@ function DiscList({
         );
       })}
     </div>
-  );
-}
-
-function ProgressPopup({
-  node,
-  onClose,
-  onCopy,
-  onOpenForm,
-  onDetail,
-}: {
-  node: Node;
-  onClose: () => void;
-  onCopy: (token: string) => void;
-  onOpenForm: (token: string) => void;
-  onDetail: (id: string) => void;
-}) {
-  const { pair, days, total, pct } = node;
-  const link = typeof window !== 'undefined' ? `${window.location.origin}/d/${pair.form_token}` : '';
-  const role = pair.trainee ? memberRoleZh(pair.trainee) : '';
-
-  return (
-    <Modal onClose={onClose} size="wide">
-      <div className="flex-between" style={{ alignItems: 'flex-start' }}>
-        <div>
-          <div className="flex items-center gap-8 flex-wrap">
-            <span className="badge b-accent">被带领</span>
-            <strong className="serif" style={{ fontSize: 18 }}>{pair.trainee?.full_name}</strong>
-            <span className="muted" style={{ fontSize: 12.5 }}>{role}</span>
-          </div>
-          <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>带领者：{pair.mentor?.full_name} · 四十天一对一守望</div>
-        </div>
-        <button className="icon-btn" onClick={onClose}>✕</button>
-      </div>
-
-      <div className="progress-row mt-14">
-        <div className="bar"><span style={{ width: `${pct}%` }} /></div>
-        <span className="pct">{pct}%</span>
-      </div>
-      <div className="muted" style={{ fontSize: 13, margin: '16px 0 8px' }}>40 天守望格 · 已完成 {days} / {total} 天</div>
-      <div className="day-grid">
-        {Array.from({ length: total }, (_, i) => (
-          <div key={i} className={`day-cell ${i < days ? 'done' : ''}`}>{i + 1}</div>
-        ))}
-      </div>
-
-      <div className="field mt-16">
-        <label className="field-label">专属填写链接</label>
-        <input readOnly value={link} style={{ background: 'var(--surface-2)', color: 'var(--muted)' }} />
-      </div>
-      <div className="flex gap-8">
-        <button className="btn grow" onClick={() => onCopy(pair.form_token)}>复制链接</button>
-        <button className="btn accent grow" onClick={() => onOpenForm(pair.form_token)}>打开表单</button>
-        <button className="btn ghost" onClick={() => onDetail(pair.id)}>详情</button>
-      </div>
-    </Modal>
   );
 }
 
@@ -526,10 +583,10 @@ function AddPairModal({
   };
 
   return (
-    <Modal title="新增守望对子" onClose={onClose}>
+    <Modal title="新增守望配对" onClose={onClose}>
       {err && <ErrorBanner message={err} />}
       <p className="muted" style={{ margin: '0 0 14px', fontSize: 12.5, lineHeight: 1.6 }}>
-        建立一个新的四十天守望对子。选择<strong style={{ color: 'var(--ink)' }}>带领者</strong>与<strong style={{ color: 'var(--ink)' }}>被带领者</strong>，系统会依带领者已有的对子自动接入接棒图。
+        建立一个新的四十天守望配对。选择<strong style={{ color: 'var(--ink)' }}>带领者</strong>与<strong style={{ color: 'var(--ink)' }}>被带领者</strong>，系统会依带领者已有的配对自动接入接棒图。
       </p>
       <Field label="带领者">
         <select value={mentorId} onChange={(e) => setMentorId(e.target.value)}>
@@ -540,7 +597,7 @@ function AddPairModal({
         </select>
       </Field>
       <div style={{ textAlign: 'center', color: 'var(--accent)', fontSize: 16, fontWeight: 700, margin: '-2px 0 8px' }}>↓</div>
-      <Field label="被带领者（已在对子中的不显示）">
+      <Field label="被带领者（已在配对中的不显示）">
         <select value={traineeId} onChange={(e) => setTraineeId(e.target.value)}>
           <option value="">选择成员…</option>
           {members
@@ -550,10 +607,10 @@ function AddPairModal({
             ))}
         </select>
       </Field>
-      <div className="hint" style={{ marginBottom: 6 }}>🕊 新对子从第 1 天开始（进度 0 / 40）。开始填写后即出现在接棒图中。</div>
+      <div className="hint" style={{ marginBottom: 6 }}>🕊 新配对从第 1 天开始（进度 0 / 40）。开始填写后即出现在接棒图中。</div>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
-        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '建立对子'}</button>
+        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '建立配对'}</button>
       </div>
     </Modal>
   );

@@ -3,11 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useToast } from '@/components/ui';
-import { GroupDetail, GroupRow, MemberRow } from '@/lib/types';
-import { positionZh } from '@/lib/labels';
-import { canPromoteToLeadership, GroupPosition, LEADERSHIP_POSITIONS } from '@tog/shared';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { can } from '@/lib/perms';
+import { exportMatrix } from '@/lib/export';
+import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
+import { ATTENDANCE_LABELS, positionZh, roleDot, roleTagStyle } from '@/lib/labels';
+import {
+  AttendanceStatus,
+  canPromoteToLeadership,
+  GroupPosition,
+  LEADERSHIP_POSITIONS,
+} from '@tog/shared';
 
 const POSITION_OPTIONS: GroupPosition[] = [
   GroupPosition.Leader,
@@ -20,20 +27,24 @@ const POSITION_OPTIONS: GroupPosition[] = [
 
 export default function GroupsPage() {
   const toast = useToast();
+  const perms = can(useMe().role);
   const groups = useFetch<GroupRow[]>('/groups');
   const members = useFetch<MemberRow[]>('/members');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '小组管理',
-    subtitle: '身份分配中心 · 每组各一位组长 / 副组长 / 实习组长',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新增小组
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '小组管理',
+      subtitle: '身份分配中心 · 每组各一位组长 / 副组长 / 实习组长',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新增小组
+        </button>
+      ) : undefined,
+    },
+    [perms.write],
+  );
 
   const groupList = groups.data ?? [];
 
@@ -49,7 +60,7 @@ export default function GroupsPage() {
     detail.reload();
   };
 
-  if (groups.loading) return <Loading />;
+  if (groups.initialLoading) return <Loading />;
 
   return (
     <>
@@ -114,6 +125,8 @@ function GroupPanel({
   onDeleted: () => void;
   toast: (m: string) => void;
 }) {
+  const confirm = useConfirm();
+  const perms = can(useMe().role);
   const [name, setName] = useState(group.name);
   const [desc, setDesc] = useState(group.description ?? '');
   const [addSel, setAddSel] = useState('');
@@ -149,7 +162,13 @@ function GroupPanel({
   };
 
   const deleteGroup = async () => {
-    if (!confirm(`删除「${group.name}」？组员将变为未分组。`)) return;
+    const ok = await confirm({
+      title: '删除小组',
+      message: `删除「${group.name}」？组员将变为未分组。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/groups/${group.id}`);
       onDeleted();
@@ -173,6 +192,14 @@ function GroupPanel({
   };
 
   const removeMember = async (memberId: string) => {
+    const name = groupMembers.find((m) => m.id === memberId)?.full_name ?? '该成员';
+    const ok = await confirm({
+      title: '移出小组',
+      message: `将 ${name} 移出本组？其身份与在组职位会一并清除。`,
+      confirmText: '移出',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.patch(`/members/${memberId}`, { group_id: null, group_position: null });
       onChanged();
@@ -202,12 +229,17 @@ function GroupPanel({
     }
   };
 
-  const TriNode = ({ pos, style }: { pos: GroupPosition; style: React.CSSProperties }) => {
+  const renderTriNode = (pos: GroupPosition, style: React.CSSProperties) => {
     const filled = groupMembers.some((m) => m.group_position === pos);
+    const roleZh = positionZh(pos);
     return (
       <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'var(--surface)', padding: '3px 8px', borderRadius: 8, ...style }}>
-        <span className={`badge ${filled ? 'b-brand' : 'b-gray'}`} style={{ fontWeight: 700 }}>
-          {positionZh(pos)}
+        <span
+          className={`badge ${filled ? '' : 'b-gray'}`}
+          style={filled ? { ...roleTagStyle(roleZh), fontWeight: 700 } : { fontWeight: 700 }}
+        >
+          {filled && <i className="dot" style={{ background: roleDot(roleZh) }} />}
+          {roleZh}
         </span>
         <strong style={{ fontSize: 13, color: filled ? 'var(--ink)' : 'var(--faint)' }}>
           {leadOf(pos)}
@@ -234,7 +266,7 @@ function GroupPanel({
 
           <div className="flex-between" style={{ margin: '16px 0 4px' }}>
             <div className="section-label">
-              铁三角 <span style={{ fontWeight: 400, fontSize: 12 }} className="muted">· 带领团队（推导）</span>
+              铁三角 <span style={{ fontWeight: 400, fontSize: 12 }} className="muted">· 带领团队</span>
             </div>
             <span className="faint" style={{ fontSize: 11.5 }}>{leadFilled} / 3 就位</span>
           </div>
@@ -242,18 +274,20 @@ function GroupPanel({
             <svg viewBox="0 0 300 150" preserveAspectRatio="none" width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
               <path d="M150 28 L54 122 L246 122 Z" fill="var(--brand)" fillOpacity="0.04" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="5 5" />
             </svg>
-            <TriNode pos={GroupPosition.Leader} style={{ top: 8, left: '50%', transform: 'translateX(-50%)' }} />
-            <TriNode pos={GroupPosition.AssistantLeader} style={{ bottom: 6, left: 0 }} />
-            <TriNode pos={GroupPosition.InternLeader} style={{ bottom: 6, right: 0 }} />
+            {renderTriNode(GroupPosition.Leader, { top: 8, left: '50%', transform: 'translateX(-50%)' })}
+            {renderTriNode(GroupPosition.AssistantLeader, { bottom: 6, left: 0 })}
+            {renderTriNode(GroupPosition.InternLeader, { bottom: 6, right: 0 })}
           </div>
 
           <div className="hint" style={{ margin: '12px 0 14px' }}>
             💡 身份在右侧「组员分配」逐人设定。<strong>小组长 / 副组长 / 实习组长每组各一人</strong>，且须先晋升为<strong>核心成员</strong>方可担任。
           </div>
-          <div className="flex gap-8">
-            <button className="btn" onClick={saveGroup} disabled={busy}>保存设定</button>
-            <button className="btn ghost" onClick={deleteGroup}>删除小组</button>
-          </div>
+          {perms.write && (
+            <div className="flex gap-8">
+              <button className="btn" onClick={saveGroup} disabled={busy}>保存设定</button>
+              {perms.delete && <button className="btn ghost" onClick={deleteGroup}>删除小组</button>}
+            </div>
+          )}
         </div>
 
         {/* Right — member allocation */}
@@ -261,18 +295,20 @@ function GroupPanel({
           <div className="card-head">
             <h3>组员分配 <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>（{groupMembers.length} 人）</span></h3>
           </div>
-          <div className="flex gap-8 mb-14">
-            <select value={addSel} onChange={(e) => setAddSel(e.target.value)} style={{ flex: 1 }}>
-              <option value="">选择成员加入本组…</option>
-              {unassigned.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.full_name}
-                  {m.group ? `（${m.group.name}）` : ''}
-                </option>
-              ))}
-            </select>
-            <button className="btn accent" onClick={addMember} disabled={!addSel}>＋ 添加成员</button>
-          </div>
+          {perms.write && (
+            <div className="flex gap-8 mb-14">
+              <select value={addSel} onChange={(e) => setAddSel(e.target.value)} style={{ flex: 1 }}>
+                <option value="">选择成员加入本组…</option>
+                {unassigned.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name}
+                    {m.group ? `（${m.group.name}）` : ''}
+                  </option>
+                ))}
+              </select>
+              <button className="btn accent" onClick={addMember} disabled={!addSel}>＋ 添加成员</button>
+            </div>
+          )}
           <div className="table-wrap">
             <table>
               <tbody>
@@ -288,6 +324,7 @@ function GroupPanel({
                           value={cur ?? GroupPosition.NewMember}
                           onChange={(e) => changePosition(m.id, e.target.value as GroupPosition)}
                           style={{ minWidth: 120 }}
+                          disabled={!perms.write}
                         >
                           {POSITION_OPTIONS.map((p) => {
                             const isLeadership = LEADERSHIP_POSITIONS.includes(p);
@@ -302,7 +339,9 @@ function GroupPanel({
                         </select>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn ghost sm" onClick={() => removeMember(m.id)}>移除</button>
+                        {perms.write && (
+                          <button className="btn ghost sm" onClick={() => removeMember(m.id)}>移除</button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -322,7 +361,138 @@ function GroupPanel({
           </div>
         </div>
       </div>
+
+      <WeeklyAttendance groupId={group.id} />
     </>
+  );
+}
+
+function WeeklyAttendance({ groupId }: { groupId: string }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const perms = can(useMe().role);
+  const { data, initialLoading, reload } = useFetch<GroupAttendanceResponse>(
+    `/groups/${groupId}/attendance`,
+  );
+
+  const toggle = async (meetingId: string, memberId: string, cur: AttendanceStatus | null) => {
+    const next =
+      cur === AttendanceStatus.Present ? AttendanceStatus.Absent : AttendanceStatus.Present;
+    await api.post(`/groups/meetings/${meetingId}/attendance`, {
+      records: [{ member_id: memberId, status: next }],
+    });
+    reload();
+  };
+
+  const addWeek = async () => {
+    // Weeks are recorded as 第1周 / 第2周 …; we still store a date under the
+    // hood (last week + 7 days, or today) purely to keep a stable order.
+    const last = data?.meetings[data.meetings.length - 1]?.meeting_date;
+    const base = last ? new Date(last) : new Date();
+    if (last) base.setDate(base.getDate() + 7);
+    const iso = base.toISOString().slice(0, 10);
+    try {
+      await api.post(`/groups/${groupId}/meetings`, { meeting_date: iso });
+      reload();
+      toast('已添加一周');
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  const delWeek = async (meetingId: string) => {
+    const ok = await confirm({
+      title: '删除本周聚会',
+      message: '删除本周聚会及其出席记录？',
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
+    await api.delete(`/groups/meetings/${meetingId}`);
+    reload();
+  };
+
+  const exportGrid = () => {
+    if (!data) return;
+    const headers = ['成员', ...data.meetings.map((_, i) => `第${i + 1}周`), '出席次数'];
+    const matrix = data.rows.map((r) => [
+      r.member.full_name,
+      ...r.cells.map((c) => (c.status ? ATTENDANCE_LABELS[c.status] : '')),
+      r.cells.filter((c) => c.status === AttendanceStatus.Present).length,
+    ]);
+    exportMatrix('小组每周出席', '出席', headers, matrix);
+  };
+
+  return (
+    <div className="card mt-16">
+      <div className="card-head">
+        <div>
+          <h3>每周出席</h3>
+          <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+            勾选表示当周出席
+          </div>
+        </div>
+        <div className="flex gap-8">
+          <button className="btn ghost sm" onClick={exportGrid} disabled={!data || data.meetings.length === 0}>
+            ⬇ 导出
+          </button>
+          {perms.write && <button className="btn sm" onClick={addWeek}>＋ 添加一周</button>}
+        </div>
+      </div>
+
+      {initialLoading ? (
+        <Loading />
+      ) : !data || data.meetings.length === 0 ? (
+        <div className="empty">尚无每周聚会记录，点「＋ 添加一周」开始。</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>成员</th>
+                {data.meetings.map((m, i) => (
+                  <th key={m.id} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    第{i + 1}周
+                    {perms.delete && (
+                      <button
+                        onClick={() => delWeek(m.id)}
+                        title="删除本周"
+                        style={{ marginLeft: 6, border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer' }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </th>
+                ))}
+                <th style={{ textAlign: 'center' }}>出席</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((r) => (
+                <tr key={r.member.id}>
+                  <td><strong>{r.member.full_name}</strong></td>
+                  {r.cells.map((c) => (
+                    <td key={c.meeting_id} style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={c.status === AttendanceStatus.Present}
+                        onChange={() => toggle(c.meeting_id, r.member.id, c.status)}
+                        disabled={!perms.write}
+                        style={{ width: 18, height: 18, cursor: perms.write ? 'pointer' : 'default', accentColor: 'var(--brand)' }}
+                        title={c.status === AttendanceStatus.Present ? '出席' : '未出席'}
+                      />
+                    </td>
+                  ))}
+                  <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                    {r.cells.filter((c) => c.status === AttendanceStatus.Present).length}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

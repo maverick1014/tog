@@ -1,4 +1,12 @@
 import { getDb, HttpError, json, unwrap } from '@/lib/server/db';
+import {
+  clearCookie,
+  getSession,
+  hashPassword,
+  sessionCookie,
+  signSession,
+  verifyPassword,
+} from '@/lib/server/auth';
 
 /**
  * The whole REST API, ported from the NestJS app into a single Cloudflare
@@ -7,6 +15,12 @@ import { getDb, HttpError, json, unwrap } from '@/lib/server/db';
  */
 
 type Ctx = { params: Promise<{ path: string[] }> };
+
+// Every request is per-user (session cookie) and hits Supabase — never cache or
+// statically optimize any method, or the auth gate would be skipped on GET.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const MEMBER_SELECT = '*, group:groups(id,name), household:households(id,name)';
 const MEMBER_BRIEF = 'id,full_name,church_role,group_position';
@@ -29,6 +43,26 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
   };
 
   const [r0, r1, r2, r3] = p;
+
+  // ---- Auth + access control ------------------------------------------------
+  if (r0 === 'auth') return authRoute(method, req, p, db);
+
+  // The mentor daily form (/d/<token>) is public by design — no session.
+  const isPublicForm = r0 === 'discipleship' && r1 === 'form';
+  if (!isPublicForm) {
+    const session = await getSession(req);
+    if (!session) throw new HttpError(401, '未登录');
+    // Login accounts (emails, roles, sign-in history) are super_admin-only —
+    // for reads as well as writes (rule G2), so the account list never leaks.
+    if (r0 === 'accounts' && session.role !== 'super_admin')
+      throw new HttpError(403, '仅超级管理员可管理登录账户');
+    if (method !== 'GET') {
+      // Permission matrix enforcement.
+      if (session.role === 'readonly') throw new HttpError(403, '只读账户无法修改');
+      if (method === 'DELETE' && !['super_admin', 'admin'].includes(session.role))
+        throw new HttpError(403, '当前角色无删除权限');
+    }
+  }
 
   // ---- Members --------------------------------------------------------------
   if (r0 === 'members') {
@@ -57,6 +91,30 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
             .order('enrolled_at', { ascending: false }),
         ),
       );
+    } else if (r2 === 'avatar' && method === 'POST') {
+      const form = await req.formData();
+      const file = form.get('file');
+      if (!(file instanceof File)) throw new HttpError(400, '缺少文件');
+      if (!(file.type || '').startsWith('image/')) throw new HttpError(400, '仅支持图片文件');
+      if (file.size > 5 * 1024 * 1024) throw new HttpError(400, '图片不可超过 5MB');
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const path = `${r1}/${Date.now()}.${ext}`;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const up = await db.storage
+        .from('avatars')
+        .upload(path, bytes, { contentType: file.type || 'image/jpeg', upsert: true });
+      if (up.error) throw new HttpError(500, up.error.message);
+      const { data: pub } = db.storage.from('avatars').getPublicUrl(path);
+      return json(
+        unwrap(
+          await db
+            .from('members')
+            .update({ avatar_url: pub.publicUrl })
+            .eq('id', r1)
+            .select()
+            .single(),
+        ),
+      );
     } else if (!r2) {
       if (method === 'GET')
         return json(unwrap(await db.from('members').select(MEMBER_SELECT).eq('id', r1).single()));
@@ -71,10 +129,45 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
 
   // ---- Groups ---------------------------------------------------------------
   if (r0 === 'groups') {
-    if (!r1) {
+    // /groups/meetings/:meetingId ...
+    if (r1 === 'meetings' && r2) {
+      if (r3 === 'attendance' && method === 'POST') {
+        const dto = await body();
+        const records = (dto.records as Array<Record<string, unknown>>).map((r) => ({
+          meeting_id: r2,
+          member_id: r.member_id,
+          status: r.status ?? 'present',
+        }));
+        return json(
+          unwrap(
+            await db
+              .from('group_attendance')
+              .upsert(records, { onConflict: 'meeting_id,member_id' })
+              .select(),
+          ),
+        );
+      }
+      if (!r3 && method === 'DELETE') {
+        unwrap(await db.from('group_meetings').delete().eq('id', r2).select().single());
+        return json({ id: r2 });
+      }
+    } else if (!r1) {
       if (method === 'GET') return json(unwrap(await db.from('groups').select('*').order('name')));
       if (method === 'POST')
         return json(unwrap(await db.from('groups').insert(await body()).select().single()));
+    } else if (r2 === 'attendance' && method === 'GET') {
+      return json(await groupAttendance(db, r1));
+    } else if (r2 === 'meetings' && method === 'POST') {
+      const dto = await body();
+      return json(
+        unwrap(
+          await db
+            .from('group_meetings')
+            .insert({ group_id: r1, meeting_date: dto.meeting_date, note: dto.note ?? null })
+            .select()
+            .single(),
+        ),
+      );
     } else if (!r2) {
       if (method === 'GET') {
         const group = unwrap<Record<string, unknown>>(await db.from('groups').select('*').eq('id', r1).single());
@@ -131,44 +224,6 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
         return json(unwrap(await db.from('events').update(await body()).eq('id', r1).select().single()));
       if (method === 'DELETE') {
         unwrap(await db.from('events').delete().eq('id', r1).select().single());
-        return json({ id: r1 });
-      }
-    }
-  }
-
-  // ---- Donations ------------------------------------------------------------
-  if (r0 === 'donations') {
-    if (r1 === 'summary' && method === 'GET') {
-      const rows = unwrap(await db.from('donations').select('fund, amount')) as Array<{
-        fund: string;
-        amount: number;
-      }>;
-      const byFund: Record<string, number> = {};
-      let total = 0;
-      for (const row of rows) {
-        const amt = Number(row.amount);
-        byFund[row.fund] = (byFund[row.fund] ?? 0) + amt;
-        total += amt;
-      }
-      return json({ total, byFund });
-    }
-    if (!r1) {
-      if (method === 'GET') {
-        let query = db
-          .from('donations')
-          .select('*, member:members(id,full_name)')
-          .order('donated_at', { ascending: false });
-        if (q.get('member_id')) query = query.eq('member_id', q.get('member_id'));
-        if (q.get('fund')) query = query.eq('fund', q.get('fund'));
-        return json(unwrap(await query));
-      }
-      if (method === 'POST')
-        return json(unwrap(await db.from('donations').insert(await body()).select().single()));
-    } else if (!r2) {
-      if (method === 'PATCH')
-        return json(unwrap(await db.from('donations').update(await body()).eq('id', r1).select().single()));
-      if (method === 'DELETE') {
-        unwrap(await db.from('donations').delete().eq('id', r1).select().single());
         return json({ id: r1 });
       }
     }
@@ -381,16 +436,47 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
       if (method === 'GET')
         return json(unwrap(await db.from('app_users').select(ACCOUNT_SELECT).order('created_at', { ascending: true })));
       if (method === 'POST')
-        return json(unwrap(await db.from('app_users').insert(await body()).select(ACCOUNT_SELECT).single()));
+        return json(
+          unwrap(
+            await db
+              .from('app_users')
+              .insert(await accountWrite(await body()))
+              .select(ACCOUNT_SELECT)
+              .single(),
+          ),
+        );
     } else if (!r2) {
       if (method === 'GET')
         return json(unwrap(await db.from('app_users').select(ACCOUNT_SELECT).eq('id', r1).single()));
       if (method === 'PATCH')
-        return json(unwrap(await db.from('app_users').update(await body()).eq('id', r1).select(ACCOUNT_SELECT).single()));
+        return json(
+          unwrap(
+            await db
+              .from('app_users')
+              .update(await accountWrite(await body()))
+              .eq('id', r1)
+              .select(ACCOUNT_SELECT)
+              .single(),
+          ),
+        );
       if (method === 'DELETE') {
         unwrap(await db.from('app_users').delete().eq('id', r1).select().single());
         return json({ id: r1 });
       }
+    } else if (r2 === 'password' && method === 'POST') {
+      // Super-admin resets an account's password (gate already restricts
+      // non-GET /accounts to super_admin). No current-password needed.
+      const pw = String((await body()).password ?? '');
+      if (pw.length < 8) throw new HttpError(400, '密码至少 8 位');
+      unwrap(
+        await db
+          .from('app_users')
+          .update({ password_hash: await hashPassword(pw) })
+          .eq('id', r1)
+          .select('id')
+          .single(),
+      );
+      return json({ id: r1, ok: true });
     }
   }
 
@@ -420,6 +506,46 @@ async function upsertProgress(
       .select()
       .single(),
   );
+}
+
+async function groupAttendance(db: ReturnType<typeof getDb>, groupId: string) {
+  const meetings = unwrap(
+    await db
+      .from('group_meetings')
+      .select('id, meeting_date, note')
+      .eq('group_id', groupId)
+      .order('meeting_date'),
+  ) as Array<{ id: string; meeting_date: string; note: string | null }>;
+
+  const members = unwrap(
+    await db
+      .from('members')
+      .select('id, full_name, church_role, group_position')
+      .eq('group_id', groupId)
+      .order('full_name'),
+  ) as Array<{ id: string; full_name: string }>;
+
+  const meetingIds = meetings.map((m) => m.id);
+  const att = meetingIds.length
+    ? (unwrap(
+        await db
+          .from('group_attendance')
+          .select('meeting_id, member_id, status')
+          .in('meeting_id', meetingIds),
+      ) as Array<{ meeting_id: string; member_id: string; status: string }>)
+    : [];
+
+  const map = new Map<string, string>();
+  for (const a of att) map.set(`${a.meeting_id}:${a.member_id}`, a.status);
+
+  const rows = members.map((m) => ({
+    member: m,
+    cells: meetings.map((mt) => ({
+      meeting_id: mt.id,
+      status: map.get(`${mt.id}:${m.id}`) ?? null,
+    })),
+  }));
+  return { meetings, rows };
 }
 
 async function namelist(db: ReturnType<typeof getDb>, trainingId: string) {
@@ -463,6 +589,95 @@ async function namelist(db: ReturnType<typeof getDb>, trainingId: string) {
   }));
 
   return { sessions, rows };
+}
+
+// --- Auth routes ------------------------------------------------------------
+
+async function authRoute(
+  method: string,
+  req: Request,
+  p: string[],
+  db: ReturnType<typeof getDb>,
+): Promise<Response> {
+  if (p[1] === 'login' && method === 'POST') {
+    const dto = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
+    const res = await db
+      .from('app_users')
+      .select('id, email, account_role, status, password_hash, member:members(id,full_name)')
+      .eq('email', (dto.email ?? '').toLowerCase().trim())
+      .maybeSingle();
+    if (res.error) throw new HttpError(500, res.error.message);
+    const user = res.data as {
+      id: string;
+      email: string;
+      account_role: string;
+      status: string;
+      password_hash: string | null;
+      member: { id: string; full_name: string } | null;
+    } | null;
+    if (!user || user.status !== 'active') throw new HttpError(401, '账户不存在或已停用');
+    const ok = await verifyPassword(dto.password ?? '', user.password_hash);
+    if (!ok) throw new HttpError(401, '邮箱或密码错误');
+    await db
+      .from('app_users')
+      .update({ last_sign_in_at: new Date().toISOString() })
+      .eq('id', user.id);
+    const name = user.member?.full_name ?? user.email;
+    const token = await signSession({
+      sub: user.id,
+      role: user.account_role,
+      member: user.member?.id ?? null,
+      name,
+    });
+    return new Response(
+      JSON.stringify({ id: user.id, email: user.email, account_role: user.account_role, name }),
+      { status: 200, headers: { 'content-type': 'application/json', 'set-cookie': sessionCookie(token) } },
+    );
+  }
+  if (p[1] === 'logout' && method === 'POST') {
+    return new Response(null, { status: 204, headers: { 'set-cookie': clearCookie() } });
+  }
+  if (p[1] === 'me' && method === 'GET') {
+    const s = await getSession(req);
+    if (!s) throw new HttpError(401, '未登录');
+    return json({ id: s.sub, role: s.role, member: s.member, name: s.name });
+  }
+  // Self-service password change — any logged-in user, verifies the old password.
+  if (p[1] === 'password' && method === 'POST') {
+    const s = await getSession(req);
+    if (!s) throw new HttpError(401, '未登录');
+    const dto = (await req.json().catch(() => ({}))) as { current?: string; password?: string };
+    const next = String(dto.password ?? '');
+    if (next.length < 8) throw new HttpError(400, '新密码至少 8 位');
+    const cur = unwrap(
+      await db.from('app_users').select('password_hash').eq('id', s.sub).single(),
+    ) as { password_hash: string | null };
+    if (!(await verifyPassword(dto.current ?? '', cur.password_hash)))
+      throw new HttpError(401, '当前密码不正确');
+    unwrap(
+      await db
+        .from('app_users')
+        .update({ password_hash: await hashPassword(next) })
+        .eq('id', s.sub)
+        .select('id')
+        .single(),
+    );
+    return json({ ok: true });
+  }
+  throw new HttpError(404, `No auth route for ${method} /api/${p.join('/')}`);
+}
+
+/**
+ * Normalize an account create/update payload: a plaintext `password` field is
+ * hashed into `password_hash` and stripped, so passwords are never stored raw.
+ */
+async function accountWrite(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const { password, ...rest } = body;
+  if (typeof password === 'string' && password.length > 0) {
+    if (password.length < 8) throw new HttpError(400, '密码至少 8 位');
+    rest.password_hash = await hashPassword(password);
+  }
+  return rest;
 }
 
 // --- HTTP method entry points ----------------------------------------------

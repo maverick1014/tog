@@ -4,41 +4,48 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { api } from '@/lib/api';
-import { usePageChrome } from '@/components/AppShell';
+import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, RoleBadge, useToast } from '@/components/ui';
+import { can } from '@/lib/perms';
+import { exportRows } from '@/lib/export';
 import { MemberRow } from '@/lib/types';
 import {
   formatDate,
+  GENDER_LABELS,
+  MEMBER_ROLE_FILTERS,
   memberRoleZh,
   memberStatusClass,
   memberStatusLabel,
-  ROLE_ORDER,
 } from '@/lib/labels';
 import { ChurchRole, MemberStatus } from '@tog/shared';
 
 export default function MembersPage() {
   const router = useRouter();
   const toast = useToast();
-  const { data, loading, error, reload } = useFetch<MemberRow[]>('/members');
+  const perms = can(useMe().role);
+  const { data, initialLoading, error, reload } = useFetch<MemberRow[]>('/members');
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [addOpen, setAddOpen] = useState(false);
 
-  usePageChrome({
-    title: '成员目录',
-    subtitle: '身份为推导（只读），在「小组管理」逐人设定',
-    action: (
-      <button className="btn" onClick={() => setAddOpen(true)}>
-        ＋ 新增成员
-      </button>
-    ),
-  });
+  usePageChrome(
+    {
+      title: '成员目录',
+      subtitle: '身份只读，在「小组管理」逐人设定',
+      action: perms.write ? (
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新增成员
+        </button>
+      ) : undefined,
+    },
+    [perms.write],
+  );
 
   const members = data ?? [];
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: members.length };
-    ROLE_ORDER.forEach((r) => (c[r] = 0));
+    MEMBER_ROLE_FILTERS.forEach((r) => (c[r] = 0));
     for (const m of members) {
       const r = memberRoleZh(m);
       if (c[r] != null) c[r]++;
@@ -56,45 +63,67 @@ export default function MembersPage() {
     });
   }, [members, q, roleFilter]);
 
-  if (loading) return <Loading />;
+  const exportMembers = () => {
+    exportRows(
+      '成员目录',
+      '成员',
+      rows.map((m) => ({
+        姓名: m.full_name,
+        身份: memberRoleZh(m),
+        所属小组: m.group?.name ?? '未分组',
+        邮箱: m.email ?? '',
+        电话: m.phone ?? '',
+        性别: m.gender ? GENDER_LABELS[m.gender] ?? '' : '',
+        状态: memberStatusLabel(m.status),
+        加入日期: formatDate(m.joined_at),
+      })),
+    );
+  };
+
+  if (initialLoading) return <Loading />;
 
   return (
     <>
       <ErrorBanner message={error} />
 
-      <div className="flex-between flex-wrap mb-16">
-        <div className="flex gap-8 flex-wrap">
+      <div className="flex gap-8 flex-wrap mb-12">
+        <button
+          className={`chip ${roleFilter === 'all' ? 'on' : ''}`}
+          onClick={() => setRoleFilter('all')}
+        >
+          全部 {counts.all}
+        </button>
+        {MEMBER_ROLE_FILTERS.map((r) => (
           <button
-            className={`chip ${roleFilter === 'all' ? 'on' : ''}`}
-            onClick={() => setRoleFilter('all')}
+            key={r}
+            className={`chip ${roleFilter === r ? 'on' : ''}`}
+            onClick={() => setRoleFilter(r)}
           >
-            全部 {counts.all}
+            {r} {counts[r] ?? 0}
           </button>
-          {ROLE_ORDER.map((r) => (
-            <button
-              key={r}
-              className={`chip ${roleFilter === r ? 'on' : ''}`}
-              onClick={() => setRoleFilter(r)}
-            >
-              {r} {counts[r] ?? 0}
-            </button>
-          ))}
-        </div>
+        ))}
+      </div>
+
+      <div className="flex-between flex-wrap gap-8 mb-16">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="🔍 搜索姓名…"
-          style={{ width: 200 }}
+          style={{ maxWidth: 280, flex: 1 }}
         />
+        <button className="btn ghost sm" onClick={exportMembers} disabled={rows.length === 0}>
+          ⬇ 导出 Excel
+        </button>
       </div>
 
-      <div className="card" style={{ padding: 6 }}>
+      {/* Desktop — table */}
+      <div className="card only-desktop" style={{ padding: 6 }}>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>成员</th>
-                <th>身份 <span style={{ fontWeight: 400 }}>（推导）</span></th>
+                <th>身份</th>
                 <th>所属小组</th>
                 <th>联系方式</th>
                 <th>状态</th>
@@ -139,8 +168,39 @@ export default function MembersPage() {
         </div>
       </div>
 
+      {/* Mobile — list tiles: name + 档案, 身份·小组, 联系方式, 状态·加入日期 */}
+      <div className="only-mobile">
+        {rows.map((m) => {
+          const role = memberRoleZh(m);
+          return (
+            <div key={m.id} className="mtile" onClick={() => router.push(`/members/${m.id}`)}>
+              <div className="mtile-row1">
+                <div className="flex items-center gap-8 flex-wrap" style={{ minWidth: 0 }}>
+                  <strong>{m.full_name}</strong>
+                  <span className="muted" style={{ fontSize: 12.5 }}>· {m.group?.name ?? '未分组'}</span>
+                  <RoleBadge role={role} />
+                </div>
+                <span className="mtile-cta">档案 →</span>
+              </div>
+              <div className="mtile-line">{m.phone ?? '—'}</div>
+              <div className="mtile-line">
+                <span className={`badge ${memberStatusClass(m.status)}`}>
+                  {memberStatusLabel(m.status)}
+                </span>
+                <span>· {formatDate(m.joined_at)}</span>
+              </div>
+            </div>
+          );
+        })}
+        {rows.length === 0 && (
+          <div className="faint" style={{ textAlign: 'center', padding: 28 }}>
+            没有符合条件的成员。
+          </div>
+        )}
+      </div>
+
       <div className="hint mt-14">
-        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训对子。身份为推导，只读；在「小组管理」逐人设定。
+        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训配对。身份只读；在「小组管理」逐人设定。
       </div>
 
       {addOpen && (

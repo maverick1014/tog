@@ -3,7 +3,6 @@ import {
   AccountStatus,
   AttendanceStatus,
   ChurchRole,
-  DonationMethod,
   EnrollmentStatus,
   EventType,
   Gender,
@@ -28,6 +27,7 @@ export interface MemberRow {
   household_id: string | null;
   joined_at: string | null;
   notes: string | null;
+  avatar_url: string | null;
   group?: { id: string; name: string } | null;
   household?: { id: string; name: string } | null;
 }
@@ -44,6 +44,20 @@ export interface GroupDetail extends GroupRow {
     full_name: string;
     group_position: GroupPosition | null;
     status: MemberStatus;
+  }[];
+}
+
+export interface GroupMeeting {
+  id: string;
+  meeting_date: string;
+  note: string | null;
+}
+
+export interface GroupAttendanceResponse {
+  meetings: GroupMeeting[];
+  rows: {
+    member: { id: string; full_name: string };
+    cells: { meeting_id: string; status: AttendanceStatus | null }[];
   }[];
 }
 
@@ -64,23 +78,6 @@ export interface EventDetail extends EventRow {
     status: AttendanceStatus;
     member?: { id: string; full_name: string };
   }[];
-}
-
-export interface DonationRow {
-  id: string;
-  member_id: string | null;
-  amount: number;
-  currency: string;
-  fund: string;
-  method: DonationMethod;
-  donated_at: string;
-  notes: string | null;
-  member?: { id: string; full_name: string } | null;
-}
-
-export interface DonationSummary {
-  total: number;
-  byFund: Record<string, number>;
 }
 
 export interface TrainingRow {
