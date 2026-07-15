@@ -8,7 +8,7 @@ import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
 import { can } from '@/lib/perms';
 import { exportMatrix } from '@/lib/export';
-import { MemberRow, NamelistResponse, TrainingDetail } from '@/lib/types';
+import { EnrollmentRow, MemberRow, NamelistResponse, SessionRow, TrainingDetail } from '@/lib/types';
 import {
   categoryBadgeClass,
   ENROLLMENT_STATUS_LABELS,
@@ -33,6 +33,7 @@ export default function TrainingDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [editSession, setEditSession] = useState<SessionRow | null>(null);
 
   usePageChrome({ title: '培训详情', subtitle: '场次 · 报名审核 · 核对名单' }, [id]);
 
@@ -67,6 +68,44 @@ export default function TrainingDetailPage() {
       records: [{ member_id: memberId, attended }],
     });
     namelist.reload();
+  };
+
+  const delSession = async (s: SessionRow) => {
+    const ok = await confirm({
+      title: '删除场次',
+      message: `删除「${s.title ?? `第 ${s.session_number} 课`}」？该场次的出席记录将一并移除。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/trainings/sessions/${s.id}`);
+      detail.reload();
+      namelist.reload();
+      toast('已删除场次');
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  const removeEnrollment = async (e: EnrollmentRow, pendingReject: boolean) => {
+    const ok = await confirm({
+      title: pendingReject ? '拒绝报名' : '移除报名',
+      message: pendingReject
+        ? `拒绝 ${e.member?.full_name ?? '该成员'} 的报名申请？`
+        : `将 ${e.member?.full_name ?? '该成员'} 移出本课程？其出席记录将一并移除。`,
+      confirmText: pendingReject ? '拒绝' : '移除',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/trainings/enrollments/${e.id}`);
+      detail.reload();
+      namelist.reload();
+      toast(pendingReject ? '已拒绝报名' : '已移除报名');
+    } catch (err) {
+      toast((err as Error).message);
+    }
   };
 
   const del = async () => {
@@ -135,12 +174,18 @@ export default function TrainingDetailPage() {
               <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--brand-soft)', color: 'var(--brand)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }} className="serif">
                 {s.session_number}
               </div>
-              <div className="grow">
+              <div className="grow" style={{ minWidth: 0 }}>
                 <strong style={{ fontSize: 13 }}>{s.title ?? `第 ${s.session_number} 课`}</strong>
                 <div className="muted" style={{ fontSize: 12 }}>
                   {s.scheduled_at ? formatDateTime(s.scheduled_at) : '待定'} · {s.location ?? '—'}
                 </div>
               </div>
+              {perms.write && (
+                <button className="btn ghost sm" style={{ flexShrink: 0 }} onClick={() => setEditSession(s)}>编辑</button>
+              )}
+              {perms.delete && (
+                <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => delSession(s)}>删除</button>
+              )}
             </div>
           ))}
           {t.sessions.length === 0 && (
@@ -181,6 +226,12 @@ export default function TrainingDetailPage() {
                 </span>
                 {perms.write && e.status === EnrollmentStatus.Pending && (
                   <button className="btn good sm" style={{ flexShrink: 0 }} onClick={() => approve(e.id)}>通过</button>
+                )}
+                {perms.write && e.status === EnrollmentStatus.Pending && (
+                  <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, true)}>拒绝</button>
+                )}
+                {perms.delete && e.status !== EnrollmentStatus.Pending && (
+                  <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, false)}>移除</button>
                 )}
               </div>
             ))}
@@ -263,16 +314,21 @@ export default function TrainingDetailPage() {
           }}
         />
       )}
-      {sessionOpen && (
+      {(sessionOpen || editSession) && (
         <SessionModal
           trainingId={id}
+          session={editSession}
           nextNumber={(t.sessions[t.sessions.length - 1]?.session_number ?? 0) + 1}
-          onClose={() => setSessionOpen(false)}
+          onClose={() => {
+            setSessionOpen(false);
+            setEditSession(null);
+          }}
           onSaved={() => {
             setSessionOpen(false);
+            setEditSession(null);
             detail.reload();
             namelist.reload();
-            toast('已加入场次');
+            toast(editSession ? '已更新场次' : '已加入场次');
           }}
         />
       )}
@@ -280,22 +336,31 @@ export default function TrainingDetailPage() {
   );
 }
 
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 function SessionModal({
   trainingId,
+  session,
   nextNumber,
   onClose,
   onSaved,
 }: {
   trainingId: string;
+  session?: SessionRow | null;
   nextNumber: number;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState({
-    session_number: nextNumber,
-    title: '',
-    scheduled_at: '',
-    location: '',
+    session_number: session?.session_number ?? nextNumber,
+    title: session?.title ?? '',
+    scheduled_at: toLocalInput(session?.scheduled_at ?? null),
+    location: session?.location ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -304,12 +369,14 @@ function SessionModal({
     setSaving(true);
     setErr(null);
     try {
-      await api.post(`/trainings/${trainingId}/sessions`, {
+      const payload = {
         session_number: Number(form.session_number),
-        title: form.title || undefined,
-        scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : undefined,
-        location: form.location || undefined,
-      });
+        title: form.title || null,
+        scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
+        location: form.location || null,
+      };
+      if (session) await api.patch(`/trainings/sessions/${session.id}`, payload);
+      else await api.post(`/trainings/${trainingId}/sessions`, payload);
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
@@ -319,7 +386,7 @@ function SessionModal({
   };
 
   return (
-    <Modal title="新增场次" onClose={onClose}>
+    <Modal title={session ? '编辑场次' : '新增场次'} onClose={onClose}>
       {err && <ErrorBanner message={err} />}
       <div className="form-row">
         <Field label="第几课">
