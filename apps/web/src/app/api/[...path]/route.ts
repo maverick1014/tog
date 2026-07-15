@@ -95,7 +95,9 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
       const form = await req.formData();
       const file = form.get('file');
       if (!(file instanceof File)) throw new HttpError(400, '缺少文件');
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      if (!(file.type || '').startsWith('image/')) throw new HttpError(400, '仅支持图片文件');
+      if (file.size > 5 * 1024 * 1024) throw new HttpError(400, '图片不可超过 5MB');
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
       const path = `${r1}/${Date.now()}.${ext}`;
       const bytes = new Uint8Array(await file.arrayBuffer());
       const up = await db.storage

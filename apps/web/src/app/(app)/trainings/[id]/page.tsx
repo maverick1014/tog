@@ -227,7 +227,7 @@ export default function TrainingDetailPage() {
                 {perms.write && e.status === EnrollmentStatus.Pending && (
                   <button className="btn good sm" style={{ flexShrink: 0 }} onClick={() => approve(e.id)}>通过</button>
                 )}
-                {perms.write && e.status === EnrollmentStatus.Pending && (
+                {perms.delete && e.status === EnrollmentStatus.Pending && (
                   <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, true)}>拒绝</button>
                 )}
                 {perms.delete && e.status !== EnrollmentStatus.Pending && (

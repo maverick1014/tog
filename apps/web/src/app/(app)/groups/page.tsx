@@ -443,7 +443,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
       {initialLoading ? (
         <Loading />
       ) : !data || data.meetings.length === 0 ? (
-        <div className="empty">尚无每周聚会记录，点「＋ 添加本周」开始。</div>
+        <div className="empty">尚无每周聚会记录，点「＋ 添加一周」开始。</div>
       ) : (
         <div className="table-wrap">
           <table>
