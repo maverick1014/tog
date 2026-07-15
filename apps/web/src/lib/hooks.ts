@@ -25,5 +25,11 @@ export function useFetch<T>(path: string | null) {
     reload();
   }, [reload]);
 
-  return { data, loading, error, reload, setData };
+  // `loading` flips true on every reload() so callers can disable buttons etc.
+  // `initialLoading` is true ONLY before the first successful fetch — use it to
+  // gate the full-page spinner so a post-mutation refetch keeps the current UI
+  // (and its form state / scroll) on screen instead of remounting it.
+  const initialLoading = loading && data === null && error === null;
+
+  return { data, loading, initialLoading, error, reload, setData };
 }

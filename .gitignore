@@ -10,6 +10,11 @@ build/
 out/
 *.tsbuildinfo
 
+# cloudflare / opennext
+.open-next/
+.wrangler/
+.dev.vars
+
 # env
 .env
 .env.local

@@ -1,0 +1,212 @@
+#!/usr/bin/env node
+/**
+ * API-level end-to-end test for the TOG church-management API.
+ *
+ * Exercises every flow the browser suite covers, but over HTTP: auth,
+ * role-based access control (401/403), and full CRUD round-trips for every
+ * entity — all self-cleaning (created data is deleted again). Deterministic and
+ * fast; no browser. Runs post-deploy in deploy.yml and can be run locally with
+ *   NODE_USE_ENV_PROXY=1 node scripts/api-e2e.mjs
+ *
+ * Env: SMOKE_URL (base, default live), SMOKE_EMAIL / SMOKE_PASSWORD (super_admin).
+ * Exits 0 on success, 1 on any failed assertion.
+ */
+
+const BASE = (process.env.SMOKE_URL || process.env.E2E_BASE_URL || 'https://tog-web.tabernacleofgrace-cn.workers.dev').replace(/\/+$/, '');
+const EMAIL = process.env.SMOKE_EMAIL || process.env.E2E_EMAIL || 'john@grace.org';
+const PASSWORD = process.env.SMOKE_PASSWORD || process.env.E2E_PASSWORD || 'grace2026';
+
+let pass = 0;
+let fail = 0;
+const fails = [];
+function ok(name, cond, detail) {
+  if (cond) { pass++; }
+  else { fail++; fails.push(`${name}${detail ? ` — ${detail}` : ''}`); console.error(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); }
+}
+
+async function req(method, path, { cookie, body, raw } = {}) {
+  const headers = {};
+  if (cookie) headers.cookie = cookie;
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const setCookie = res.headers.get('set-cookie') || '';
+  let json;
+  if (!raw) { try { json = await res.json(); } catch { json = undefined; } }
+  return { status: res.status, json, cookie: setCookie.split(';')[0] };
+}
+
+async function login(email, password) {
+  const r = await req('POST', '/api/auth/login', { body: { email, password } });
+  return r.status === 200 ? r.cookie : null;
+}
+
+async function main() {
+  console.log(`API E2E → ${BASE}`);
+
+  // ---- Auth ---------------------------------------------------------------
+  ok('unauth GET /members → 401', (await req('GET', '/api/members')).status === 401);
+  ok('bad login → 401', (await req('POST', '/api/auth/login', { body: { email: EMAIL, password: 'nope' } })).status === 401);
+
+  const admin = await login(EMAIL, PASSWORD); // super_admin bootstrap
+  ok('super_admin login → cookie', !!admin);
+  if (!admin) return finish();
+  const me = await req('GET', '/api/auth/me', { cookie: admin });
+  ok('me returns super_admin', me.json?.role === 'super_admin', me.json?.role);
+  const H = { cookie: admin };
+
+  // ---- Reference data -----------------------------------------------------
+  const members = (await req('GET', '/api/members', H)).json;
+  ok('members is non-empty array', Array.isArray(members) && members.length > 0);
+  const accounts = (await req('GET', '/api/accounts', H)).json;
+  ok('super_admin can read accounts', Array.isArray(accounts));
+  const taken = new Set((accounts || []).map((a) => a.member_id));
+  const freeMembers = (members || []).filter((m) => !taken.has(m.id));
+
+  // ---- Members CRUD -------------------------------------------------------
+  const mkMember = await req('POST', '/api/members', { ...H, body: { full_name: `E2E成员-${Date.now()}`, church_role: 'member', status: 'active' } });
+  ok('create member → 200 + id', mkMember.status === 200 && mkMember.json?.id, `status ${mkMember.status}`);
+  const memberId = mkMember.json?.id;
+  if (memberId) {
+    const patch = await req('PATCH', `/api/members/${memberId}`, { ...H, body: { phone: '012-000 0000' } });
+    ok('update member → 200', patch.status === 200 && patch.json?.phone === '012-000 0000');
+    const del = await req('DELETE', `/api/members/${memberId}`, H);
+    ok('delete member → 200', del.status === 200);
+  }
+
+  // ---- Events CRUD --------------------------------------------------------
+  const mkEv = await req('POST', '/api/events', { ...H, body: { title: `E2E聚会-${Date.now()}`, event_type: 'service', starts_at: new Date('2026-08-01T10:00:00Z').toISOString() } });
+  ok('create event → 200 + id', mkEv.status === 200 && mkEv.json?.id, `status ${mkEv.status} ${JSON.stringify(mkEv.json).slice(0,120)}`);
+  const evId = mkEv.json?.id;
+  if (evId) {
+    ok('update event → 200', (await req('PATCH', `/api/events/${evId}`, { ...H, body: { location: '副堂' } })).status === 200);
+    if (memberOrNull(members)) {
+      const att = await req('POST', `/api/events/${evId}/attendance`, { ...H, body: { records: [{ member_id: members[0].id, status: 'present' }] } });
+      ok('event attendance → 200', att.status === 200, `status ${att.status}`);
+    }
+    ok('delete event → 200', (await req('DELETE', `/api/events/${evId}`, H)).status === 200);
+  }
+
+  // ---- Groups CRUD (+ weekly attendance) ----------------------------------
+  const mkGrp = await req('POST', '/api/groups', { ...H, body: { name: `E2E小组-${Date.now()}` } });
+  ok('create group → 200 + id', mkGrp.status === 200 && mkGrp.json?.id, `status ${mkGrp.status}`);
+  const grpId = mkGrp.json?.id;
+  if (grpId) {
+    ok('update group → 200', (await req('PATCH', `/api/groups/${grpId}`, { ...H, body: { description: '周日 14:00' } })).status === 200);
+    const mkMeet = await req('POST', `/api/groups/${grpId}/meetings`, { ...H, body: { meeting_date: '2026-08-02' } });
+    ok('add group meeting → 200 + id', mkMeet.status === 200 && mkMeet.json?.id, `status ${mkMeet.status}`);
+    const meetId = mkMeet.json?.id;
+    if (meetId && members?.length) {
+      ok('meeting attendance → 200', (await req('POST', `/api/groups/meetings/${meetId}/attendance`, { ...H, body: { records: [{ member_id: members[0].id, status: 'present' }] } })).status === 200);
+      ok('delete meeting → 200', (await req('DELETE', `/api/groups/meetings/${meetId}`, H)).status === 200);
+    }
+    ok('delete group → 200', (await req('DELETE', `/api/groups/${grpId}`, H)).status === 200);
+  }
+
+  // ---- Trainings CRUD (+ session, enroll, attendance) ---------------------
+  const mkTr = await req('POST', '/api/trainings', { ...H, body: { name: `E2E课程-${Date.now()}`, total_sessions: 1, is_enrollable: true } });
+  ok('create training → 200 + id', mkTr.status === 200 && mkTr.json?.id, `status ${mkTr.status} ${JSON.stringify(mkTr.json).slice(0,120)}`);
+  const trId = mkTr.json?.id;
+  if (trId) {
+    const mkSess = await req('POST', `/api/trainings/${trId}/sessions`, { ...H, body: { session_number: 1, title: '第一课' } });
+    ok('add session → 200', mkSess.status === 200, `status ${mkSess.status}`);
+    if (members?.length) {
+      const enr = await req('POST', `/api/trainings/${trId}/enroll`, { ...H, body: { member_id: members[0].id } });
+      ok('enroll member → 200 + id', enr.status === 200 && enr.json?.id, `status ${enr.status}`);
+      if (enr.json?.id) ok('approve enrollment → 200', (await req('PATCH', `/api/trainings/enrollments/${enr.json.id}`, { ...H, body: { status: 'approved' } })).status === 200);
+    }
+    ok('delete training → 200', (await req('DELETE', `/api/trainings/${trId}`, H)).status === 200);
+  }
+
+  // ---- Discipleship pair CRUD + public form -------------------------------
+  const programs = (await req('GET', '/api/discipleship/programs', H)).json;
+  const programId = programs?.[0]?.id;
+  ok('has a discipleship program', !!programId);
+  // The trainee must not already be paired (unique program_id+trainee_id).
+  const existingPairs = (await req('GET', '/api/discipleship/pairs', H)).json || [];
+  const usedTrainees = new Set(existingPairs.map((p) => p.trainee_id));
+  const freeTrainees = (members || []).filter((m) => !usedTrainees.has(m.id));
+  if (programId && freeTrainees.length >= 2) {
+    const mentor = freeTrainees[0];
+    const trainee = freeTrainees.find((m) => m.id !== mentor.id);
+    const mkPair = await req('POST', '/api/discipleship/pairs', { ...H, body: { program_id: programId, mentor_id: mentor.id, trainee_id: trainee.id } });
+    ok('create pair → 200 + id', mkPair.status === 200 && mkPair.json?.id, `status ${mkPair.status} ${JSON.stringify(mkPair.json).slice(0,120)}`);
+    const token = mkPair.json?.form_token;
+    if (token) {
+      ok('public form GET (no auth) → 200', (await req('GET', `/api/discipleship/form/${token}`)).status === 200);
+      const prog = await req('POST', `/api/discipleship/form/${token}/progress`, { body: { day_number: 1, completed: true } });
+      ok('public form submit progress → 200', prog.status === 200, `status ${prog.status}`);
+    }
+    if (mkPair.json?.id) ok('delete pair → 200', (await req('DELETE', `/api/discipleship/pairs/${mkPair.json.id}`, H)).status === 200);
+  }
+
+  // ---- Accounts CRUD + password (super_admin) -----------------------------
+  if (freeMembers.length) {
+    const email = `e2e-acct-${Date.now()}@grace.org`;
+    const mkAcc = await req('POST', '/api/accounts', { ...H, body: { member_id: freeMembers[0].id, email, account_role: 'coworker', password: 'e2ePass2026' } });
+    ok('create account → 200 + id', mkAcc.status === 200 && mkAcc.json?.id, `status ${mkAcc.status}`);
+    const accId = mkAcc.json?.id;
+    if (accId) {
+      ok('update account role → 200', (await req('PATCH', `/api/accounts/${accId}`, { ...H, body: { account_role: 'admin' } })).status === 200);
+      ok('reset account password → 200', (await req('POST', `/api/accounts/${accId}/password`, { ...H, body: { password: 'newPass2026' } })).status === 200);
+      ok('delete account → 200', (await req('DELETE', `/api/accounts/${accId}`, H)).status === 200);
+    }
+  }
+
+  // ---- Access control: provision role accounts, assert the matrix ---------
+  await roleMatrix(freeMembers);
+
+  finish();
+}
+
+function memberOrNull(members) {
+  return members && members.length ? members[0] : null;
+}
+
+async function roleMatrix(freeMembers) {
+  if (freeMembers.length < 2) { ok('role-matrix (skipped: need 2 free members)', true); return; }
+  const admin = await login(EMAIL, PASSWORD);
+  const H = { cookie: admin };
+  const made = [];
+  const provision = async (role, member) => {
+    const email = `e2e-${role}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@grace.org`;
+    const r = await req('POST', '/api/accounts', { ...H, body: { member_id: member.id, email, account_role: role, password: 'e2ePass2026' } });
+    if (r.json?.id) made.push(r.json.id);
+    return { email, cookie: await login(email, 'e2ePass2026') };
+  };
+  try {
+    const ro = await provision('readonly', freeMembers[0]);
+    ok('readonly can login', !!ro.cookie);
+    if (ro.cookie) {
+      const RH = { cookie: ro.cookie };
+      ok('readonly GET members → 200', (await req('GET', '/api/members', RH)).status === 200);
+      ok('readonly POST members → 403', (await req('POST', '/api/members', { ...RH, body: { full_name: 'x', church_role: 'member', status: 'active' } })).status === 403);
+      ok('readonly GET accounts → 403', (await req('GET', '/api/accounts', RH)).status === 403);
+    }
+    const co = await provision('coworker', freeMembers[1]);
+    ok('coworker can login', !!co.cookie);
+    if (co.cookie) {
+      const CH = { cookie: co.cookie };
+      const mk = await req('POST', '/api/members', { ...CH, body: { full_name: `E2E同工建-${Date.now()}`, church_role: 'member', status: 'active' } });
+      ok('coworker POST members → 200', mk.status === 200, `status ${mk.status}`);
+      if (mk.json?.id) {
+        ok('coworker DELETE member → 403', (await req('DELETE', `/api/members/${mk.json.id}`, CH)).status === 403);
+        await req('DELETE', `/api/members/${mk.json.id}`, H); // cleanup as super_admin
+      }
+      ok('coworker GET accounts → 403', (await req('GET', '/api/accounts', CH)).status === 403);
+    }
+  } finally {
+    for (const id of made) await req('DELETE', `/api/accounts/${id}`, H);
+  }
+}
+
+function finish() {
+  console.log(`\n==== API E2E: ${pass} passed, ${fail} failed ====`);
+  if (fail) { console.error('Failures:\n - ' + fails.join('\n - ')); process.exit(1); }
+  process.exit(0);
+}
+
+main().catch((e) => { console.error('API E2E crashed:', e); process.exit(1); });

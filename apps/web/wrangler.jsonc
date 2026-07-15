@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tog-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  }
+  // Secrets (set in the Cloudflare dashboard or `wrangler secret put`, never here):
+  //   SUPABASE_URL
+  //   SUPABASE_SERVICE_ROLE_KEY
+  // These back the /api route handlers at runtime.
+}

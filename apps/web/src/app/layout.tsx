@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Sidebar } from '@/components/Sidebar';
 
 export const metadata: Metadata = {
-  title: 'TOG · Church Management',
-  description: 'Members, events, giving, trainings and 40-day discipleship.',
+  title: '主恩堂 · 教会管理系统',
+  description: '人 · 聚会 · 培训 · 四十天一对一守望',
 };
 
 export default function RootLayout({
@@ -13,13 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
-        <div className="app-shell">
-          <Sidebar />
-          <main className="main">{children}</main>
-        </div>
-      </body>
+    <html lang="zh-CN">
+      <body>{children}</body>
     </html>
   );
 }

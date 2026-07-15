@@ -1,0 +1,489 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useFetch } from '@/lib/hooks';
+import { api } from '@/lib/api';
+import { usePageChrome, useMe } from '@/components/AppShell';
+import { ErrorBanner, Field, Loading, Modal, PasswordInput, RoleBadge, Switch, useConfirm, useToast } from '@/components/ui';
+import { ChangePasswordModal } from '@/components/ChangePasswordModal';
+import { AccountRow, MemberRow } from '@/lib/types';
+import {
+  ACCOUNT_ROLE_OPTIONS,
+  ACCOUNT_ROLE_PERMISSIONS,
+  ACCOUNT_ROLE_ZH,
+  accountRoleClass,
+  accountStatusClass,
+  accountStatusLabel,
+  formatDateTime,
+  memberRoleZh,
+} from '@/lib/labels';
+import { AccountRole, AccountStatus, ACCOUNT_ROLE_LABELS } from '@tog/shared';
+
+export default function SettingsPage() {
+  const me = useMe();
+  const isSuperAdmin = me.role === AccountRole.SuperAdmin;
+  const toast = useToast();
+  const accounts = useFetch<AccountRow[]>(isSuperAdmin ? '/accounts' : null);
+  const members = useFetch<MemberRow[]>(isSuperAdmin ? '/members' : null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [myPwOpen, setMyPwOpen] = useState(false);
+
+  usePageChrome({
+    title: '用户管理',
+    subtitle: '登录账户 · 权限角色 · 安全与偏好',
+    action: (
+      <>
+        <button className="btn ghost" onClick={() => setMyPwOpen(true)}>
+          修改我的密码
+        </button>
+        <button className="btn" onClick={() => setAddOpen(true)}>
+          ＋ 新建账户
+        </button>
+      </>
+    ),
+  });
+
+  const list = accounts.data ?? [];
+  const selected = list.find((a) => a.id === detailId) ?? null;
+
+  const reload = () => {
+    accounts.reload();
+  };
+
+  // 用户管理 is super_admin-only; others may still change their own password.
+  if (!isSuperAdmin) {
+    return (
+      <>
+        <div className="empty">仅超级管理员可访问用户管理。</div>
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <button className="btn ghost" onClick={() => setMyPwOpen(true)}>修改我的密码</button>
+        </div>
+        {myPwOpen && (
+          <ChangePasswordModal
+            onClose={() => setMyPwOpen(false)}
+            onSaved={() => {
+              setMyPwOpen(false);
+              toast('密码已更新');
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  if (accounts.initialLoading) return <Loading />;
+
+  if (selected) {
+    return (
+      <AccountDetail
+        account={selected}
+        onBack={() => setDetailId(null)}
+        onSaved={() => {
+          reload();
+          toast('已保存账户设置');
+        }}
+        onDeleted={() => {
+          setDetailId(null);
+          reload();
+          toast('已删除账户');
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <ErrorBanner message={accounts.error} />
+      <div className="hint mb-14">
+        💡 每个登录账户都<strong>关联一位成员档案</strong>。点右上角「＋ 新建账户」选择成员、设定登录邮箱与初始密码并授予权限；点任一账户可管理其权限、重设密码与偏好。<br />
+        <span className="faint">登录鉴权已启用：会话由签名 Cookie 保护，密码以 PBKDF2 加盐哈希存储。超级管理员可重设任意账户密码，用户可在「修改我的密码」中自助修改。</span>
+      </div>
+      <div className="card mb-14">
+        <div className="card-head">
+          <h3>权限说明</h3>
+          <span className="muted" style={{ fontSize: 12 }}>各权限角色可执行的操作</span>
+        </div>
+        <div className="grid g4">
+          {ACCOUNT_ROLE_OPTIONS.map((r) => (
+            <div
+              key={r}
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}
+            >
+              <span className={`badge ${accountRoleClass(r)}`}>{ACCOUNT_ROLE_ZH[r]}</span>
+              <ul style={{ margin: '9px 0 0', paddingLeft: 16, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                {ACCOUNT_ROLE_PERMISSIONS[r].map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 6 }}>
+        <div className="table-wrap">
+          <table className="stack">
+            <thead>
+              <tr>
+                <th>账户 · 关联成员</th>
+                <th>在组身份</th>
+                <th>权限角色</th>
+                <th>登录邮箱</th>
+                <th>状态</th>
+                <th>最近登录</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((u) => {
+                const role = u.member ? memberRoleZh(u.member) : '未分组';
+                return (
+                  <tr key={u.id} className="row-click" onClick={() => setDetailId(u.id)}>
+                    <td data-label="账户 · 关联成员">
+                      <strong>{u.member?.full_name ?? '—'}</strong>
+                    </td>
+                    <td data-label="在组身份">
+                      <RoleBadge role={role} />
+                    </td>
+                    <td data-label="权限角色"><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>
+                    <td className="muted" data-label="登录邮箱">{u.email}</td>
+                    <td data-label="状态"><span className={`badge ${accountStatusClass(u.status)}`}>{accountStatusLabel(u.status)}</span></td>
+                    <td className="muted" style={{ whiteSpace: 'nowrap' }} data-label="最近登录">{u.last_sign_in_at ? formatDateTime(u.last_sign_in_at) : '从未'}</td>
+                    <td style={{ textAlign: 'right' }}><button className="btn ghost sm">管理</button></td>
+                  </tr>
+                );
+              })}
+              {list.length === 0 && (
+                <tr><td colSpan={7} className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无账户。</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {addOpen && (
+        <AddAccountModal
+          members={members.data ?? []}
+          existing={list}
+          onClose={() => setAddOpen(false)}
+          onSaved={() => {
+            setAddOpen(false);
+            reload();
+            toast('已新建账户');
+          }}
+        />
+      )}
+
+      {myPwOpen && (
+        <ChangePasswordModal
+          onClose={() => setMyPwOpen(false)}
+          onSaved={() => {
+            setMyPwOpen(false);
+            toast('密码已更新');
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function NotifyRow({ title, sub, on, set }: { title: string; sub: string; on: boolean; set: (v: boolean) => void }) {
+  return (
+    <div className="flex-between" style={{ padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
+        <div className="muted" style={{ fontSize: 11.5 }}>{sub}</div>
+      </div>
+      <Switch on={on} onToggle={() => set(!on)} />
+    </div>
+  );
+}
+
+function AccountDetail({
+  account,
+  onBack,
+  onSaved,
+  onDeleted,
+}: {
+  account: AccountRow;
+  onBack: () => void;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const router = useRouter();
+  const [email, setEmail] = useState(account.email);
+  const [role, setRole] = useState<AccountRole>(account.account_role);
+  const [status, setStatus] = useState<AccountStatus>(account.status);
+  const [twoFactor, setTwoFactor] = useState(account.two_factor);
+  const [language, setLanguage] = useState(account.language);
+  const [nDisc, setNDisc] = useState(account.notify_discipleship);
+  const [nWeekly, setNWeekly] = useState(account.notify_weekly);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [pw, setPw] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
+
+  const memberRole = account.member ? memberRoleZh(account.member) : '未分组';
+
+  const resetPassword = async () => {
+    if (pw.length < 8) {
+      setErr('新密码至少 8 位');
+      return;
+    }
+    setPwBusy(true);
+    setErr(null);
+    try {
+      await api.post(`/accounts/${account.id}/password`, { password: pw });
+      setPw('');
+      toast(`已为 ${account.member?.full_name ?? '该账户'} 重设密码`);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
+  const del = async () => {
+    const ok = await confirm({
+      title: '删除登录账户',
+      message: `删除 ${account.member?.full_name ?? '该成员'} 的登录账户？其成员档案会保留。`,
+      confirmText: '删除账户',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/accounts/${account.id}`);
+      onDeleted();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.patch(`/accounts/${account.id}`, {
+        email,
+        account_role: role,
+        status,
+        two_factor: twoFactor,
+        language,
+        notify_discipleship: nDisc,
+        notify_weekly: nWeekly,
+      });
+      onSaved();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <button className="back-btn" onClick={onBack}>← 返回用户列表</button>
+      {err && <ErrorBanner message={err} />}
+
+      <div className="card">
+        <div className="flex items-center gap-12 flex-wrap">
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--brand)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 25, fontWeight: 600, flexShrink: 0, boxShadow: '0 0 0 4px var(--brand-soft)' }} className="serif">
+            {account.member?.full_name?.slice(-2) ?? '?'}
+          </div>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="flex items-center gap-10 flex-wrap">
+              <h2 style={{ margin: 0, fontSize: 20 }} className="serif">{account.member?.full_name}</h2>
+              <span className={`badge ${accountRoleClass(role)}`}>{ACCOUNT_ROLE_ZH[role]}</span>
+              <RoleBadge role={memberRole} />
+            </div>
+            <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>账户已关联成员档案 · {account.email}</div>
+          </div>
+          {account.member && (
+            <button className="btn ghost" onClick={() => router.push(`/members/${account.member!.id}`)}>查看成员档案 →</button>
+          )}
+        </div>
+
+        <div className="grid g2" style={{ marginTop: 18 }}>
+          <Field label="登录邮箱">
+            <input value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="权限角色">
+            <select value={role} onChange={(e) => setRole(e.target.value as AccountRole)}>
+              {ACCOUNT_ROLE_OPTIONS.map((r) => (
+                <option key={r} value={r}>{ACCOUNT_ROLE_LABELS[r]}</option>
+              ))}
+            </select>
+          </Field>
+          <div style={{ gridColumn: '1 / -1' }} className="flex-between" >
+            <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>账户状态</div>
+                <div className="muted" style={{ fontSize: 11.5 }}>停用后该成员无法登录后台</div>
+              </div>
+              <Switch
+                on={status === AccountStatus.Active}
+                onToggle={() => setStatus(status === AccountStatus.Active ? AccountStatus.Disabled : AccountStatus.Active)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid g2 mt-16">
+        <div className="card">
+          <h3 style={{ marginBottom: 4 }}>安全 · 重设登录密码</h3>
+          <div className="muted" style={{ fontSize: 11.5, marginBottom: 12 }}>
+            仅超级管理员可为其他账户直接重设密码；无需知道旧密码。
+          </div>
+          <Field label="新密码">
+            <PasswordInput value={pw} onChange={setPw} placeholder="至少 8 位" autoComplete="new-password" />
+          </Field>
+          <button className="btn ghost block" onClick={resetPassword} disabled={pwBusy || pw.length < 8}>
+            {pwBusy ? '重设中…' : '重设该账户密码'}
+          </button>
+          <div className="flex-between" style={{ paddingTop: 12, borderTop: '1px solid var(--border)', marginTop: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>两步验证（2FA）</div>
+              <div className="muted" style={{ fontSize: 11.5 }}>登录时需短信验证码（规划中）</div>
+            </div>
+            <Switch on={twoFactor} onToggle={() => setTwoFactor(!twoFactor)} />
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginBottom: 14 }}>偏好</h3>
+          <Field label="界面语言">
+            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+              <option value="zh-CN">简体中文</option>
+              <option value="zh-TW">繁體中文</option>
+              <option value="en">English</option>
+              <option value="ms">Bahasa Melayu</option>
+            </select>
+          </Field>
+        </div>
+      </div>
+
+      <div className="card mt-16">
+        <h3 style={{ marginBottom: 6 }}>通知</h3>
+        <NotifyRow title="门训进度更新" sub="带领者提交每日守望时通知" on={nDisc} set={setNDisc} />
+        <div className="flex-between" style={{ padding: '11px 0' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>每周概览邮件</div>
+            <div className="muted" style={{ fontSize: 11.5 }}>每周一早晨发送牧养摘要</div>
+          </div>
+          <Switch on={nWeekly} onToggle={() => setNWeekly(!nWeekly)} />
+        </div>
+      </div>
+
+      <div
+        className="flex-between flex-wrap mt-16"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: '16px 20px' }}
+      >
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--crit)' }}>删除账户</div>
+          <div className="muted" style={{ fontSize: 11.5 }}>移除此登录账户 · 不会删除其成员档案</div>
+        </div>
+        <button
+          className="btn"
+          style={{ background: 'transparent', color: 'var(--crit)', border: '1px solid var(--crit-soft)' }}
+          onClick={del}
+        >
+          删除账户
+        </button>
+      </div>
+
+      <div className="flex-between flex-wrap mt-16">
+        <button className="btn ghost" onClick={onBack}>取消</button>
+        <button className="btn" onClick={save} disabled={busy}>{busy ? '保存中…' : '保存账户设置'}</button>
+      </div>
+    </div>
+  );
+}
+
+function AddAccountModal({
+  members,
+  existing,
+  onClose,
+  onSaved,
+}: {
+  members: MemberRow[];
+  existing: AccountRow[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const takenMembers = new Set(existing.map((a) => a.member_id));
+  const [memberId, setMemberId] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<AccountRole>(AccountRole.Coworker);
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!memberId || !email.trim()) {
+      setErr('请选择成员并填写登录邮箱');
+      return;
+    }
+    if (password.length < 8) {
+      setErr('请设定至少 8 位的初始密码');
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      await api.post('/accounts', {
+        member_id: memberId,
+        email: email.trim(),
+        account_role: role,
+        password,
+      });
+      onSaved();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title="新建账户" onClose={onClose}>
+      {err && <ErrorBanner message={err} />}
+      <p className="muted" style={{ margin: '0 0 14px', fontSize: 12.5, lineHeight: 1.6 }}>
+        登录账户必须<strong style={{ color: 'var(--ink)' }}>关联一位成员</strong>。先选择成员，再设定登录邮箱与权限角色。
+      </p>
+      <Field label="关联成员（已有账户者不显示）">
+        <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+          <option value="">选择成员…</option>
+          {members
+            .filter((m) => !takenMembers.has(m.id))
+            .map((m) => (
+              <option key={m.id} value={m.id}>{m.full_name}（{memberRoleZh(m)}）</option>
+            ))}
+        </select>
+      </Field>
+      <div className="form-row">
+        <Field label="登录邮箱">
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@grace.org" />
+        </Field>
+        <Field label="权限角色">
+          <select value={role} onChange={(e) => setRole(e.target.value as AccountRole)}>
+            {ACCOUNT_ROLE_OPTIONS.map((r) => (
+              <option key={r} value={r}>{ACCOUNT_ROLE_LABELS[r]}</option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      <Field label="初始密码">
+        <PasswordInput value={password} onChange={setPassword} placeholder="至少 8 位，可稍后由用户自行修改" autoComplete="new-password" />
+      </Field>
+      <div className="modal-actions">
+        <button className="btn ghost" onClick={onClose}>取消</button>
+        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '创建账户'}</button>
+      </div>
+    </Modal>
+  );
+}

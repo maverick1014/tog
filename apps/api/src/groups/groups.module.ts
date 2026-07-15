@@ -31,7 +31,7 @@ class GroupsService {
   }
 
   async findOne(id: string) {
-    const group = unwrap(
+    const group = unwrap<Record<string, unknown>>(
       await this.supabase.db.from('groups').select('*').eq('id', id).single(),
     );
     // Leadership is derived from members.group_position (single source of truth).
@@ -42,7 +42,7 @@ class GroupsService {
         .eq('group_id', id)
         .order('full_name'),
     );
-    return { ...(group as object), members };
+    return { ...group, members };
   }
 
   create(dto: GroupDto) {

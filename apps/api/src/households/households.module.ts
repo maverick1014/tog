@@ -32,7 +32,7 @@ class HouseholdsService {
   }
 
   async findOne(id: string) {
-    const household = unwrap(
+    const household = unwrap<Record<string, unknown>>(
       await this.supabase.db.from('households').select('*').eq('id', id).single(),
     );
     const members = unwrap(
@@ -41,7 +41,7 @@ class HouseholdsService {
         .select('id,full_name,group_position')
         .eq('household_id', id),
     );
-    return { ...(household as object), members };
+    return { ...household, members };
   }
 
   create(dto: HouseholdDto) {
