@@ -311,6 +311,12 @@ button {
   width: 100%;
 }
 
+/* On desktop the page actions live in the topbar; on phones/tablets they move
+   into the content instead (see the ≤820px rules) so the header stays clean. */
+.content-actions {
+  display: none;
+}
+
 .scrim {
   display: none;
   position: fixed;
@@ -1039,15 +1045,20 @@ textarea {
   }
   .topbar {
     padding: 14px 16px 12px;
-    flex-wrap: wrap;
-    row-gap: 10px;
   }
-  /* On phones the action buttons drop onto their own full-width row so long
-     labels (e.g. 修改我的密码 + ＋新建账户) never overflow the header. */
+  /* The header stays title-only on phones; the action buttons render at the top
+     of the content instead, where there's room for full labels. */
   .topbar-actions {
-    width: 100%;
-    justify-content: flex-end;
+    display: none;
+  }
+  .content-actions {
+    display: flex;
     flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .content-actions > * {
+    flex: 1 1 auto;
   }
   .content {
     padding: 18px 16px 64px;
@@ -1058,6 +1069,11 @@ textarea {
     grid-template-columns: repeat(2, 1fr);
   }
   .g3 {
+    grid-template-columns: 1fr;
+  }
+  /* Content-heavy card grids drop to one card per row on phones so long text
+     (e.g. the 权限说明 role cards) isn't squeezed into a narrow column. */
+  .grid.stack-mobile {
     grid-template-columns: 1fr;
   }
 }

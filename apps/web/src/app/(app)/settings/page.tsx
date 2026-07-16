@@ -105,7 +105,7 @@ export default function SettingsPage() {
           <h3>权限说明</h3>
           <span className="muted" style={{ fontSize: 12 }}>各权限角色可执行的操作</span>
         </div>
-        <div className="grid g4">
+        <div className="grid g4 stack-mobile">
           {ACCOUNT_ROLE_OPTIONS.map((r) => (
             <div
               key={r}
