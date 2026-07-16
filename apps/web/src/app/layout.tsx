@@ -12,13 +12,8 @@ export const metadata: Metadata = {
     title: '主恩堂',
     statusBarStyle: 'default',
   },
-  icons: {
-    icon: [
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-  },
+  // Favicon (app/icon.png) and apple-touch-icon (app/apple-icon.png) are wired
+  // automatically by Next's file conventions; PWA icons live in the manifest.
 };
 
 export const viewport: Viewport = {
