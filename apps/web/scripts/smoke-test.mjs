@@ -4,14 +4,14 @@
  * that the API is protected by auth and that a valid login unlocks the data.
  *
  * Env:
- *   SMOKE_URL       base URL (default: the tog-web Worker)
+ *   SMOKE_URL       base URL (default: the tog Worker)
  *   SMOKE_EMAIL     login email (default: john@grace.org)
  *   SMOKE_PASSWORD  login password (default: grace2026)
  *
  * Requires Node 20+ (global fetch). Exits 0 on success, 1 on any failure.
  */
 
-const BASE = (process.env.SMOKE_URL || 'https://tog-web.tabernacleofgrace-cn.workers.dev').replace(
+const BASE = (process.env.SMOKE_URL || 'https://tog.tabernacleofgrace-cn.workers.dev').replace(
   /\/+$/,
   '',
 );

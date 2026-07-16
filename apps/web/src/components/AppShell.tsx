@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ConfirmProvider, ToastProvider, useConfirm } from './ui';
 import { ChangePasswordModal } from './ChangePasswordModal';
-import { GlobeMark } from './GlobeMark';
+import { BrandLogo } from './BrandLogo';
 import { initialOf } from '@/lib/labels';
 import { ACCOUNT_ROLE_LABELS, AccountRole } from '@tog/shared';
 
@@ -113,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <aside className="sidebar">
             <div className="brand-head">
               <div className="brand-mark">
-                <GlobeMark size={24} />
+                <BrandLogo size={34} />
               </div>
               <div className="brand-name">
                 主恩堂

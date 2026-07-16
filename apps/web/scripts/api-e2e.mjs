@@ -12,7 +12,7 @@
  * Exits 0 on success, 1 on any failed assertion.
  */
 
-const BASE = (process.env.SMOKE_URL || process.env.E2E_BASE_URL || 'https://tog-web.tabernacleofgrace-cn.workers.dev').replace(/\/+$/, '');
+const BASE = (process.env.SMOKE_URL || process.env.E2E_BASE_URL || 'https://tog.tabernacleofgrace-cn.workers.dev').replace(/\/+$/, '');
 const EMAIL = process.env.SMOKE_EMAIL || process.env.E2E_EMAIL || 'john@grace.org';
 const PASSWORD = process.env.SMOKE_PASSWORD || process.env.E2E_PASSWORD || 'grace2026';
 
