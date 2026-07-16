@@ -6,7 +6,14 @@ import { useFetch } from '@/lib/hooks';
 import { usePageChrome } from '@/components/AppShell';
 import { Card, ErrorBanner, Loading } from '@/components/ui';
 import { EventRow, MemberRow, OverviewRow, ProgramRow } from '@/lib/types';
-import { formatDateTime, memberRoleZh, roleDot, ROLE_ORDER } from '@/lib/labels';
+import {
+  EVENT_TYPE_LABELS,
+  eventBadgeClass,
+  formatDateTime,
+  memberRoleZh,
+  roleDot,
+  ROLE_ORDER,
+} from '@/lib/labels';
 import { MemberStatus } from '@tog/shared';
 
 export default function DashboardPage() {
@@ -126,12 +133,15 @@ export default function DashboardPage() {
             <p className="faint" style={{ fontSize: 13 }}>暂无即将到来的聚会。</p>
           ) : (
             upcoming.slice(0, 5).map((e) => (
-              <div key={e.id} className="flex-between" style={{ padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
-                <span className={`badge ${e.event_type === 'service' ? 'b-brand' : 'b-accent'}`}>
-                  {e.title}
+              <div key={e.id} className="flex items-center gap-10 flex-wrap" style={{ padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+                <span className={`badge ${eventBadgeClass(e.event_type)}`}>
+                  {EVENT_TYPE_LABELS[e.event_type] ?? e.event_type}
                 </span>
-                <div className="grow muted" style={{ fontSize: 13 }}>{formatDateTime(e.starts_at)}</div>
-                <span className="muted" style={{ fontSize: 12 }}>{e.location ?? ''}</span>
+                <strong style={{ fontSize: 13 }}>{e.title}</strong>
+                <div className="grow" />
+                <span className="muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                  {formatDateTime(e.starts_at)}{e.location ? ` · ${e.location}` : ''}
+                </span>
               </div>
             ))
           )}

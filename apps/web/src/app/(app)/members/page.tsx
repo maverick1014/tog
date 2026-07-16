@@ -182,16 +182,20 @@ export default function MembersPage() {
                 </div>
                 <span className="mtile-cta">档案 →</span>
               </div>
-              <div className="mtile-line">{m.phone ?? '—'}</div>
-              <div className="mtile-line">
-                {/* Active is the norm — only surface the status when it's not 在册. */}
-                {m.status !== MemberStatus.Active && (
-                  <span className={`badge ${memberStatusClass(m.status)}`}>
-                    {memberStatusLabel(m.status)}
-                  </span>
-                )}
-                <span>{formatDate(m.joined_at)}</span>
-              </div>
+              {/* Only render detail lines that have real content — a tile with no
+                  phone/date shouldn't show bare “—” placeholder rows. */}
+              {m.phone && <div className="mtile-line">{m.phone}</div>}
+              {(m.status !== MemberStatus.Active || m.joined_at) && (
+                <div className="mtile-line">
+                  {/* Active is the norm — only surface the status when it's not 在册. */}
+                  {m.status !== MemberStatus.Active && (
+                    <span className={`badge ${memberStatusClass(m.status)}`}>
+                      {memberStatusLabel(m.status)}
+                    </span>
+                  )}
+                  {m.joined_at && <span>{formatDate(m.joined_at)}</span>}
+                </div>
+              )}
             </div>
           );
         })}

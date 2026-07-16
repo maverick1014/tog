@@ -269,10 +269,10 @@ export default function TrainingDetailPage() {
             <tbody>
               {(nl?.rows ?? []).map((r) => (
                 <tr key={r.member.id}>
-                  <td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
                     <strong>{r.member.full_name}</strong>
                   </td>
-                  <td className="muted">{memberRoleZh(r.member)}</td>
+                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>{memberRoleZh(r.member)}</td>
                   {r.attendance.map((a) => (
                     <td key={a.session_id} style={{ textAlign: 'center' }}>
                       <span
