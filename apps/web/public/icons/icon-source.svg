@@ -1,0 +1,50 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="sphere" cx="38%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#4c4643"/>
+      <stop offset="52%" stop-color="#272320"/>
+      <stop offset="100%" stop-color="#0d0b0a"/>
+    </radialGradient>
+    <clipPath id="globe"><circle cx="256" cy="256" r="140"/></clipPath>
+  </defs>
+
+  <!-- icon background -->
+  <rect width="512" height="512" fill="#ffffff"/>
+
+  <!-- keep the mark within the maskable safe zone -->
+  <g transform="translate(256 256) scale(0.92) translate(-256 -256)">
+
+    <!-- orbital ring — back half (behind the globe) -->
+    <g transform="rotate(-18 256 256)">
+      <ellipse cx="256" cy="256" rx="196" ry="116" fill="none" stroke="#7f171b" stroke-width="14"/>
+    </g>
+
+    <!-- sphere -->
+    <circle cx="256" cy="256" r="140" fill="url(#sphere)"/>
+
+    <!-- lat / long grid, clipped to the sphere -->
+    <g clip-path="url(#globe)" fill="none" stroke="#ffffff" stroke-width="4.6" opacity="0.94">
+      <line x1="256" y1="116" x2="256" y2="396"/>
+      <ellipse cx="256" cy="256" rx="62" ry="140"/>
+      <ellipse cx="256" cy="256" rx="110" ry="140"/>
+      <line x1="116" y1="256" x2="396" y2="256"/>
+      <path d="M126 202 Q256 216 386 202"/>
+      <path d="M126 310 Q256 296 386 310"/>
+      <path d="M150 158 Q256 172 362 158"/>
+      <path d="M150 354 Q256 340 362 354"/>
+    </g>
+
+    <!-- orbital ring — front half (over the globe bottom) -->
+    <g transform="rotate(-18 256 256)">
+      <path d="M60 256 A196 116 0 0 1 452 256" fill="none" stroke="#a51f24" stroke-width="14"/>
+    </g>
+
+    <!-- crimson cross-arrow, on top -->
+    <g stroke="#a51f24" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="256" y1="98" x2="256" y2="414"/>
+      <line x1="150" y1="236" x2="346" y2="236"/>
+    </g>
+    <path d="M344 210 L388 236 L344 262 Z" fill="#a51f24"/>
+
+  </g>
+</svg>
