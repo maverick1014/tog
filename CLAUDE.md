@@ -10,6 +10,21 @@ Run before every push: `npm run --workspace @tog/web -s build` (or in
 `apps/web`: `npx tsc --noEmit && npm test && npm run build`). Deploys are gated
 on unit tests + a post-deploy smoke test (`.github/workflows/deploy.yml`).
 
+Testing layers (in `apps/web`):
+- `npm test` — Vitest unit tests (labels, rules, perms).
+- `npm run test:api-e2e` — API end-to-end against the live Worker (auth, role
+  matrix, full CRUD, public form).
+- `npm run test:ui-e2e` — **browser UI end-to-end**: drives the real site in
+  Chromium and asserts each interaction's expected outcome (login, search,
+  filters, modals, weekly attendance, discipleship day-notes, a create→delete
+  member write-cycle). It runs a tiny in-process reverse proxy so the browser
+  works even behind an egress proxy. `UI_E2E_PASSWORD` is required (never
+  hardcode a real password); `UI_E2E_URL` / `UI_E2E_EMAIL` are optional. In this
+  sandbox run it as:
+  `NODE_USE_ENV_PROXY=1 PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome UI_E2E_PASSWORD=… npm run test:ui-e2e`.
+  When you add/rename a page or a key interaction, add a matching check to
+  `scripts/ui-e2e.mjs`.
+
 ---
 
 ## GOLDEN RULES — every auditor / code reviewer MUST check these
