@@ -1,10 +1,12 @@
 name: UI E2E (browser interaction test)
 
 # Drives the deployed site in a real Chromium and asserts each interaction's
-# expected outcome (scripts/ui-e2e.mjs). Manual + nightly; NOT a deploy gate, so
-# a browser hiccup never blocks a release. The always-on coverage is the API
-# E2E inside deploy.yml. Every write it performs (one throwaway member) is
-# deleted again, with an API fallback, so the target stays clean.
+# expected outcome (scripts/ui-e2e.mjs). Runs automatically after each
+# successful deploy (via workflow_run) and on manual dispatch — but NOT as a
+# deploy gate, so a browser hiccup never blocks a release. The always-on
+# coverage is the API E2E inside deploy.yml. Every write it performs (one
+# throwaway member) is deleted again, with an API fallback, so the target stays
+# clean.
 on:
   workflow_dispatch:
     inputs:
@@ -12,8 +14,11 @@ on:
         description: Target base URL
         required: false
         default: https://tog.tabernacleofgrace-cn.workers.dev
-  schedule:
-    - cron: '0 18 * * *' # nightly
+  # Run automatically after each deployment finishes (decoupled from the deploy
+  # job, so a browser hiccup here never blocks a release).
+  workflow_run:
+    workflows: ['Deploy web to Cloudflare Workers']
+    types: [completed]
 
 permissions:
   contents: read
@@ -21,6 +26,8 @@ permissions:
 jobs:
   ui-e2e:
     runs-on: ubuntu-latest
+    # Only after a successful deploy (or when triggered manually).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     timeout-minutes: 20
     env:
       UI_E2E_URL: ${{ github.event.inputs.base_url || 'https://tog.tabernacleofgrace-cn.workers.dev' }}
