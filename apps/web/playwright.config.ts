@@ -12,7 +12,7 @@ import { defineConfig, devices } from '@playwright/test';
  * every write flow creates uniquely-named data and deletes it again so the
  * demo data stays clean.
  */
-const BASE_URL = process.env.E2E_BASE_URL || 'https://tog-web.tabernacleofgrace-cn.workers.dev';
+const BASE_URL = process.env.E2E_BASE_URL || 'https://tog.tabernacleofgrace-cn.workers.dev';
 // Only pin an executable when explicitly told to (e.g. a sandbox with a
 // pre-installed browser). In CI, `npx playwright install` provides the browser
 // and Playwright resolves it automatically — a hardcoded path would break.

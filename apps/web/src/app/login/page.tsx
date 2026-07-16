@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GlobeMark } from '@/components/GlobeMark';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,9 +52,9 @@ export default function LoginPage() {
       >
         <div className="flex items-center gap-10" style={{ marginBottom: 6 }}>
           <span
-            style={{ width: 40, height: 40, borderRadius: 11, background: 'var(--brand)', display: 'grid', placeItems: 'center', flexShrink: 0 }}
+            style={{ width: 40, height: 40, borderRadius: 11, background: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.05)' }}
           >
-            <GlobeMark size={24} />
+            <BrandLogo size={34} />
           </span>
           <div className="serif" style={{ fontSize: 19, fontWeight: 600 }}>
             主恩堂

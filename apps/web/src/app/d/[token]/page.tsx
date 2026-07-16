@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
-import { GlobeMark } from '@/components/GlobeMark';
+import { BrandLogo } from '@/components/BrandLogo';
 
 interface FormPair {
   id: string;
@@ -78,8 +78,8 @@ export default function DailyFormPage() {
     <div style={{ position: 'fixed', inset: 0, background: 'var(--paper)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
       <div className="flex-between" style={{ padding: '15px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 2 }}>
         <div className="flex items-center gap-10 serif" style={{ fontWeight: 600, fontSize: 15 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--brand)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-            <GlobeMark size={18} />
+          <span style={{ width: 30, height: 30, borderRadius: 8, background: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.06)' }}>
+            <BrandLogo size={26} />
           </span>
           四十天一对一守望 · 每日填写
         </div>
