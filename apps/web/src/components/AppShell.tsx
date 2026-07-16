@@ -163,12 +163,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {chrome.subtitle && <div className="sub">{chrome.subtitle}</div>}
                 </div>
               </div>
-              <div className="flex items-center gap-10 topbar-actions">
-                {chrome.action}
-              </div>
+              {chrome.action && (
+                <div className="flex items-center gap-10 topbar-actions">
+                  {chrome.action}
+                </div>
+              )}
             </div>
 
             <div className="content view-anim" key={pathname}>
+              {chrome.action && <div className="content-actions">{chrome.action}</div>}
               {children}
             </div>
           </div>

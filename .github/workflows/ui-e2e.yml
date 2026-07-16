@@ -1,0 +1,60 @@
+name: UI E2E (browser interaction test)
+
+# Drives the deployed site in a real Chromium and asserts each interaction's
+# expected outcome (scripts/ui-e2e.mjs). Runs automatically after each
+# successful deploy (via workflow_run) and on manual dispatch — but NOT as a
+# deploy gate, so a browser hiccup never blocks a release. The always-on
+# coverage is the API E2E inside deploy.yml. Every write it performs (one
+# throwaway member) is deleted again, with an API fallback, so the target stays
+# clean.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Target base URL
+        required: false
+        default: https://tog.tabernacleofgrace-cn.workers.dev
+  # Run automatically after each deployment finishes (decoupled from the deploy
+  # job, so a browser hiccup here never blocks a release).
+  workflow_run:
+    workflows: ['Deploy web to Cloudflare Workers']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  ui-e2e:
+    runs-on: ubuntu-latest
+    # Only after a successful deploy (or when triggered manually).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 20
+    env:
+      UI_E2E_URL: ${{ github.event.inputs.base_url || 'https://tog.tabernacleofgrace-cn.workers.dev' }}
+      UI_E2E_EMAIL: ${{ secrets.SMOKE_EMAIL || 'john@grace.org' }}
+      # Set the SMOKE_PASSWORD repo secret to the test account's password.
+      UI_E2E_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+      UI_E2E_SHOTS: ${{ github.workspace }}/ui-shots
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build shared types
+        run: npm run build -w @tog/shared
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Run UI E2E
+        working-directory: apps/web
+        run: mkdir -p "$UI_E2E_SHOTS" && npm run test:ui-e2e
+      - name: Upload screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-e2e-screenshots
+          path: ui-shots
+          retention-days: 14

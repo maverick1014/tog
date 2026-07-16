@@ -340,7 +340,7 @@ function GroupPanel({
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         {perms.write && (
-                          <button className="btn ghost sm" onClick={() => removeMember(m.id)}>移除</button>
+                          <button className="btn ghost" onClick={() => removeMember(m.id)}>移除</button>
                         )}
                       </td>
                     </tr>
@@ -367,60 +367,101 @@ function GroupPanel({
   );
 }
 
+/** The Sundays of a given month — the fixed weeks for that year/month combo. */
+function weeksOfMonth(year: number, month1to12: number) {
+  const out: { no: number; date: string; day: number }[] = [];
+  const d = new Date(year, month1to12 - 1, 1);
+  while (d.getDay() !== 0) d.setDate(d.getDate() + 1); // first Sunday
+  let n = 1;
+  while (d.getMonth() === month1to12 - 1) {
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`;
+    out.push({ no: n, date, day: d.getDate() });
+    d.setDate(d.getDate() + 7);
+    n++;
+  }
+  return out;
+}
+
 function WeeklyAttendance({ groupId }: { groupId: string }) {
   const toast = useToast();
-  const confirm = useConfirm();
   const perms = can(useMe().role);
   const { data, initialLoading, reload } = useFetch<GroupAttendanceResponse>(
     `/groups/${groupId}/attendance`,
   );
 
-  const toggle = async (meetingId: string, memberId: string, cur: AttendanceStatus | null) => {
-    const next =
-      cur === AttendanceStatus.Present ? AttendanceStatus.Absent : AttendanceStatus.Present;
-    await api.post(`/groups/meetings/${meetingId}/attendance`, {
-      records: [{ member_id: memberId, status: next }],
-    });
-    reload();
-  };
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
 
-  const addWeek = async () => {
-    // Weeks are recorded as 第1周 / 第2周 …; we still store a date under the
-    // hood (last week + 7 days, or today) purely to keep a stable order.
-    const last = data?.meetings[data.meetings.length - 1]?.meeting_date;
-    const base = last ? new Date(last) : new Date();
-    if (last) base.setDate(base.getDate() + 7);
-    const iso = base.toISOString().slice(0, 10);
+  // Weeks are fixed by the year+month (each Sunday of that month) — not editable.
+  const weeks = useMemo(() => weeksOfMonth(year, month), [year, month]);
+
+  // Year options: this year, last year, plus any year that already has records.
+  const years = useMemo(() => {
+    const set = new Set<number>([now.getFullYear(), now.getFullYear() - 1]);
+    (data?.meetings ?? []).forEach((m) => set.add(Number(m.meeting_date.slice(0, 4))));
+    return [...set].filter((y) => y > 0).sort((a, b) => b - a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // date → meeting id, and member → (date → status), so a week column can look
+  // up its cell regardless of which meetings currently exist.
+  const meetingIdByDate = useMemo(() => {
+    const m = new Map<string, string>();
+    (data?.meetings ?? []).forEach((mt) => m.set(mt.meeting_date.slice(0, 10), mt.id));
+    return m;
+  }, [data]);
+
+  const statusByMemberDate = useMemo(() => {
+    const dateOf = new Map<string, string>();
+    (data?.meetings ?? []).forEach((mt) => dateOf.set(mt.id, mt.meeting_date.slice(0, 10)));
+    const map = new Map<string, Map<string, AttendanceStatus | null>>();
+    (data?.rows ?? []).forEach((r) => {
+      const inner = new Map<string, AttendanceStatus | null>();
+      r.cells.forEach((c) => {
+        const ds = dateOf.get(c.meeting_id);
+        if (ds) inner.set(ds, c.status);
+      });
+      map.set(r.member.id, inner);
+    });
+    return map;
+  }, [data]);
+
+  const toggle = async (dateStr: string, memberId: string, present: boolean) => {
+    const next = present ? AttendanceStatus.Absent : AttendanceStatus.Present;
     try {
-      await api.post(`/groups/${groupId}/meetings`, { meeting_date: iso });
+      let mid = meetingIdByDate.get(dateStr);
+      if (!mid) {
+        // The week's meeting row is created lazily the first time it's marked.
+        const meeting = await api.post<{ id: string }>(`/groups/${groupId}/meetings`, {
+          meeting_date: dateStr,
+        });
+        mid = meeting.id;
+      }
+      await api.post(`/groups/meetings/${mid}/attendance`, {
+        records: [{ member_id: memberId, status: next }],
+      });
       reload();
-      toast('已添加一周');
     } catch (e) {
       toast((e as Error).message);
     }
   };
 
-  const delWeek = async (meetingId: string) => {
-    const ok = await confirm({
-      title: '删除本周聚会',
-      message: '删除本周聚会及其出席记录？',
-      confirmText: '删除',
-      danger: true,
-    });
-    if (!ok) return;
-    await api.delete(`/groups/meetings/${meetingId}`);
-    reload();
-  };
-
   const exportGrid = () => {
     if (!data) return;
-    const headers = ['成员', ...data.meetings.map((_, i) => `第${i + 1}周`), '出席次数'];
-    const matrix = data.rows.map((r) => [
-      r.member.full_name,
-      ...r.cells.map((c) => (c.status ? ATTENDANCE_LABELS[c.status] : '')),
-      r.cells.filter((c) => c.status === AttendanceStatus.Present).length,
-    ]);
-    exportMatrix('小组每周出席', '出席', headers, matrix);
+    const headers = ['成员', ...weeks.map((w) => `第${w.no}周(${w.day}日)`), '出席次数'];
+    const matrix = (data.rows ?? []).map((r) => {
+      const inner = statusByMemberDate.get(r.member.id);
+      const cells = weeks.map((w) => {
+        const s = inner?.get(w.date);
+        return s ? ATTENDANCE_LABELS[s] : '';
+      });
+      const count = weeks.filter((w) => inner?.get(w.date) === AttendanceStatus.Present).length;
+      return [r.member.full_name, ...cells, count];
+    });
+    exportMatrix(`小组每周出席_${year}年${month}月`, '出席', headers, matrix);
   };
 
   return (
@@ -429,65 +470,73 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
         <div>
           <h3>每周出席</h3>
           <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
-            勾选表示当周出席
+            按年 / 月查看 · 每周固定为当月主日 · 勾选表示当周出席
           </div>
         </div>
-        <div className="flex gap-8">
-          <button className="btn ghost sm" onClick={exportGrid} disabled={!data || data.meetings.length === 0}>
-            ⬇ 导出
-          </button>
-          {perms.write && <button className="btn sm" onClick={addWeek}>＋ 添加一周</button>}
-        </div>
+        <button className="btn ghost sm" onClick={exportGrid} disabled={!data}>
+          ⬇ 导出
+        </button>
+      </div>
+
+      <div className="flex gap-8 mb-14 flex-wrap">
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }}>
+          {years.map((y) => (
+            <option key={y} value={y}>{y} 年</option>
+          ))}
+        </select>
+        <select value={month} onChange={(e) => setMonth(Number(e.target.value))} style={{ width: 'auto' }}>
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => (
+            <option key={mo} value={mo}>{mo} 月</option>
+          ))}
+        </select>
       </div>
 
       {initialLoading ? (
         <Loading />
-      ) : !data || data.meetings.length === 0 ? (
-        <div className="empty">尚无每周聚会记录，点「＋ 添加一周」开始。</div>
+      ) : !data || data.rows.length === 0 ? (
+        <div className="empty">本组暂无成员。</div>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>成员</th>
-                {data.meetings.map((m, i) => (
-                  <th key={m.id} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                    第{i + 1}周
-                    {perms.delete && (
-                      <button
-                        onClick={() => delWeek(m.id)}
-                        title="删除本周"
-                        style={{ marginLeft: 6, border: 'none', background: 'transparent', color: 'var(--faint)', cursor: 'pointer' }}
-                      >
-                        ✕
-                      </button>
-                    )}
+                {weeks.map((w) => (
+                  <th key={w.date} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    第{w.no}周
+                    <div className="faint" style={{ fontSize: 10.5, fontWeight: 400 }}>{w.day}日</div>
                   </th>
                 ))}
                 <th style={{ textAlign: 'center' }}>出席</th>
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((r) => (
-                <tr key={r.member.id}>
-                  <td><strong>{r.member.full_name}</strong></td>
-                  {r.cells.map((c) => (
-                    <td key={c.meeting_id} style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={c.status === AttendanceStatus.Present}
-                        onChange={() => toggle(c.meeting_id, r.member.id, c.status)}
-                        disabled={!perms.write}
-                        style={{ width: 18, height: 18, cursor: perms.write ? 'pointer' : 'default', accentColor: 'var(--brand)' }}
-                        title={c.status === AttendanceStatus.Present ? '出席' : '未出席'}
-                      />
+              {data.rows.map((r) => {
+                const inner = statusByMemberDate.get(r.member.id);
+                return (
+                  <tr key={r.member.id}>
+                    <td><strong>{r.member.full_name}</strong></td>
+                    {weeks.map((w) => {
+                      const present = inner?.get(w.date) === AttendanceStatus.Present;
+                      return (
+                        <td key={w.date} style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={present}
+                            onChange={() => toggle(w.date, r.member.id, present)}
+                            disabled={!perms.write}
+                            style={{ width: 18, height: 18, cursor: perms.write ? 'pointer' : 'default', accentColor: 'var(--brand)' }}
+                            title={present ? '出席' : '未出席'}
+                          />
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                      {weeks.filter((w) => inner?.get(w.date) === AttendanceStatus.Present).length}
                     </td>
-                  ))}
-                  <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                    {r.cells.filter((c) => c.status === AttendanceStatus.Present).length}
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

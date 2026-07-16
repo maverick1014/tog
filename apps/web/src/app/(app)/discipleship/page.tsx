@@ -226,7 +226,12 @@ export default function DiscipleshipPage() {
           (forest.length === 0 ? (
             <div className="empty">目前没有进行中的配对。点右上角「＋ 新增配对」开始接棒。</div>
           ) : (
-            renderForest(false)
+            <>
+              <div className="only-mobile faint" style={{ fontSize: 11.5, marginTop: 10 }}>
+                👉 图表可左右滑动查看 · 或点「⛶ 全屏」
+              </div>
+              {renderForest(false)}
+            </>
           ))}
 
         {filter === 'done' && <DiscList list={doneList} kind="done" onOpen={setPopup} />}
