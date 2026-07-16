@@ -80,9 +80,22 @@ and below. Light theme only — no dark-mode branches or `data-theme` code.
   building blocks, no new CSS frameworks.
 - Keep `docs/` and this file in sync when a rule or flow changes.
 
+### G9 — Form controls share one size system
+- Every single-line control — `input`, `select`, and `.btn` — is sized by the
+  shared `--control-h` (small variants by `--control-h-sm`), never by ad-hoc
+  per-element padding/height. A `<select>` placed next to a `<button>` (e.g. the
+  「选择成员…」+「＋添加成员」row) must line up in height; a control that doesn't
+  use the token is a finding. Don't set custom `height`/vertical `padding` on a
+  control to "fix" alignment — fix the token or the class.
+- `<select>` uses `appearance: none` with the shared custom chevron (drawn via
+  `background-image`, right-aligned padding). Never rely on the native arrow —
+  its metrics differ per browser/device and break both height and alignment.
+- New controls inherit these by using the base element / `.btn` classes; page
+  code should not restyle control geometry inline.
+
 ---
 
 ## Reviewer output
 Report findings most-severe first. Correctness/security (G2, G3, G6) outrank
-CRUD gaps (G1) which outrank cleanup/altitude (G4, G5). Every finding cites a
+CRUD gaps (G1) which outrank cleanup/altitude (G4, G5, G9). Every finding cites a
 concrete failure scenario and, where applicable, the golden-rule number.

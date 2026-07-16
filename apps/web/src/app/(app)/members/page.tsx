@@ -184,10 +184,13 @@ export default function MembersPage() {
               </div>
               <div className="mtile-line">{m.phone ?? '—'}</div>
               <div className="mtile-line">
-                <span className={`badge ${memberStatusClass(m.status)}`}>
-                  {memberStatusLabel(m.status)}
-                </span>
-                <span>· {formatDate(m.joined_at)}</span>
+                {/* Active is the norm — only surface the status when it's not 在册. */}
+                {m.status !== MemberStatus.Active && (
+                  <span className={`badge ${memberStatusClass(m.status)}`}>
+                    {memberStatusLabel(m.status)}
+                  </span>
+                )}
+                <span>{formatDate(m.joined_at)}</span>
               </div>
             </div>
           );
