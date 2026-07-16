@@ -797,6 +797,12 @@ textarea {
   transform: scale(1.08);
   border-color: var(--brand);
 }
+/* Selected day: a ring that stays readable on both filled and empty cells
+   (unlike .today it doesn't recolor the number). */
+.day-cell.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
 /* Namelist tick cells ----------------------------------------------------- */
 .tick {
