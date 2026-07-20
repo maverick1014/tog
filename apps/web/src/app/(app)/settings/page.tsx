@@ -3,9 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
+import { useSortableRows } from '@/lib/sort';
 import { api } from '@/lib/api';
 import { usePageChrome, useMe } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, PasswordInput, RoleBadge, Switch, useConfirm, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, PasswordInput, RoleBadge, SortTh, Switch, useConfirm, useToast } from '@/components/ui';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 import { AccountRow, MemberRow } from '@/lib/types';
 import {
@@ -15,6 +16,7 @@ import {
   accountRoleClass,
   accountStatusClass,
   accountStatusLabel,
+  churchRoleZh,
   formatDateTime,
   memberRoleZh,
 } from '@/lib/labels';
@@ -47,6 +49,28 @@ export default function SettingsPage() {
 
   const list = accounts.data ?? [];
   const selected = list.find((a) => a.id === detailId) ?? null;
+
+  const { sorted: sortedAccounts, sortKey: acctSortKey, sortDir: acctSortDir, toggleSort: toggleAcctSort } =
+    useSortableRows(
+      list,
+      (u, key) => {
+        switch (key) {
+          case 'role':
+            return u.member ? churchRoleZh(u.member.church_role) : undefined;
+          case 'account_role':
+            return ACCOUNT_ROLE_ZH[u.account_role];
+          case 'email':
+            return u.email;
+          case 'status':
+            return accountStatusLabel(u.status);
+          case 'last_login':
+            return u.last_sign_in_at ?? undefined;
+          default:
+            return u.member?.full_name;
+        }
+      },
+      { key: 'name', dir: 'asc' },
+    );
 
   const reload = () => {
     accounts.reload();
@@ -127,24 +151,24 @@ export default function SettingsPage() {
           <table className="stack">
             <thead>
               <tr>
-                <th>账户 · 关联成员</th>
-                <th>小组身份</th>
-                <th>权限角色</th>
-                <th>登录邮箱</th>
-                <th>状态</th>
-                <th>最近登录</th>
+                <SortTh sortKey="name" activeKey={acctSortKey} dir={acctSortDir} onSort={toggleAcctSort}>账户 · 关联成员</SortTh>
+                <SortTh sortKey="role" activeKey={acctSortKey} dir={acctSortDir} onSort={toggleAcctSort}>教会身份</SortTh>
+                <SortTh sortKey="account_role" activeKey={acctSortKey} dir={acctSortDir} onSort={toggleAcctSort}>权限角色</SortTh>
+                <SortTh sortKey="email" activeKey={acctSortKey} dir={acctSortDir} onSort={toggleAcctSort}>登录邮箱</SortTh>
+                <SortTh sortKey="status" activeKey={acctSortKey} dir={acctSortDir} onSort={toggleAcctSort}>状态</SortTh>
+                <SortTh sortKey="last_login" activeKey={acctSortKey} dir={acctSortDir} onSort={toggleAcctSort}>最近登录</SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {list.map((u) => {
-                const role = u.member ? memberRoleZh(u.member) : '未分组';
+              {sortedAccounts.map((u) => {
+                const role = u.member ? churchRoleZh(u.member.church_role) : '—';
                 return (
                   <tr key={u.id}>
                     <td data-label="账户 · 关联成员">
                       <strong>{u.member?.full_name ?? '—'}</strong>
                     </td>
-                    <td data-label="小组身份">
+                    <td data-label="教会身份">
                       <RoleBadge role={role} />
                     </td>
                     <td data-label="权限角色"><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>
@@ -157,7 +181,7 @@ export default function SettingsPage() {
                   </tr>
                 );
               })}
-              {list.length === 0 && (
+              {sortedAccounts.length === 0 && (
                 <tr><td colSpan={7} className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无账户。</td></tr>
               )}
             </tbody>
@@ -230,7 +254,7 @@ function AccountDetail({
   const toast = useToast();
   const confirm = useConfirm();
 
-  const memberRole = account.member ? memberRoleZh(account.member) : '未分组';
+  const memberRole = account.member ? churchRoleZh(account.member.church_role) : '—';
 
   const resetPassword = async () => {
     if (pw.length < 8) {

@@ -443,6 +443,31 @@ td {
 .tnum {
   font-variant-numeric: tabular-nums;
 }
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+th.sortable:hover {
+  color: var(--ink);
+}
+.sort-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sort-caret {
+  font-size: 8px;
+  font-style: normal;
+  opacity: 0.3;
+  transition: transform 0.15s, opacity 0.15s, color 0.15s;
+}
+.sort-caret.active {
+  opacity: 1;
+  color: var(--brand);
+}
+.sort-caret.active.desc {
+  transform: rotate(180deg);
+}
 /* ==========================================================================
    Avatars, badges, dots
    ========================================================================== */
@@ -468,6 +493,16 @@ td {
   width: 34px;
   height: 34px;
   font-size: 13px;
+}
+/* Passport-photo proportions (35×45mm ≈ 7:9) for a member's profile photo —
+   a real ID-style portrait reads better as a rectangle than a round crop. */
+.avatar.passport {
+  width: 84px;
+  height: 108px;
+  border-radius: 8px;
+  font-size: 26px;
+  border: 1px solid var(--border);
+  box-shadow: 0 0 0 4px var(--brand-soft);
 }
 .name-cell {
   display: flex;

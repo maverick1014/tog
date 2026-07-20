@@ -37,7 +37,7 @@ export function Avatar({
 }: {
   name: string | null | undefined;
   url?: string | null;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'passport';
 }) {
   const cls = `avatar ${size === 'sm' ? '' : size}`;
   if (url) {
@@ -190,6 +190,43 @@ export function Field({
       <label className="field-label">{label}</label>
       {children}
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Sortable table header cell
+ * ---------------------------------------------------------------------- */
+
+export function SortTh({
+  children,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  align,
+  style,
+}: {
+  children: ReactNode;
+  sortKey: string;
+  activeKey: string | null;
+  dir: 'asc' | 'desc';
+  onSort: (key: string) => void;
+  align?: 'right' | 'center';
+  style?: React.CSSProperties;
+}) {
+  const active = activeKey === sortKey;
+  return (
+    <th
+      className="sortable"
+      style={{ ...(align ? { textAlign: align } : undefined), ...style }}
+      onClick={() => onSort(sortKey)}
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <span className="sort-label" style={align ? { justifyContent: align === 'center' ? 'center' : 'flex-end' } : undefined}>
+        {children}
+        <i className={`sort-caret ${active ? 'active' : ''} ${active && dir === 'desc' ? 'desc' : ''}`}>▲</i>
+      </span>
+    </th>
   );
 }
 

@@ -3,9 +3,10 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
+import { useSortableRows } from '@/lib/sort';
 import { api } from '@/lib/api';
 import { usePageChrome, useMe } from '@/components/AppShell';
-import { Avatar, ErrorBanner, Field, Loading, Modal, ProgressBar, RoleBadge, useConfirm, useToast } from '@/components/ui';
+import { Avatar, ErrorBanner, Field, Loading, Modal, ProgressBar, RoleBadge, SortTh, useConfirm, useToast } from '@/components/ui';
 import { PairProgressModal } from '@/components/PairProgressModal';
 import { can } from '@/lib/perms';
 import { EnrollmentRow, GroupDetail, GroupRow, MemberRow, PairRow } from '@/lib/types';
@@ -63,6 +64,23 @@ export default function MemberDetailPage() {
   const m = member.data;
   const role = memberRoleZh(m);
   const records = record.data ?? [];
+  const { sorted: sortedRecords, sortKey: recSortKey, sortDir: recSortDir, toggleSort: toggleRecSort } =
+    useSortableRows(
+      records,
+      (t, key) => {
+        switch (key) {
+          case 'category':
+            return t.training?.category ?? undefined;
+          case 'status':
+            return ENROLLMENT_STATUS_LABELS[t.status] ?? t.status;
+          case 'completed':
+            return t.completed_at ?? undefined;
+          default:
+            return t.training?.name;
+        }
+      },
+      { key: 'course', dir: 'asc' },
+    );
   const pairs = (allPairs.data ?? []).filter(
     (p) => p.mentor_id === m.id || p.trainee_id === m.id,
   );
@@ -87,7 +105,7 @@ export default function MemberDetailPage() {
       <div className="card">
         <div className="flex-between flex-wrap">
           <div className="flex items-center gap-12">
-            <Avatar name={m.full_name} url={m.avatar_url} size="lg" />
+            <Avatar name={m.full_name} url={m.avatar_url} size="passport" />
             <div>
               <div className="flex items-center gap-10 flex-wrap">
                 <h2 style={{ margin: 0, fontSize: 22 }} className="serif">{m.full_name}</h2>
@@ -159,15 +177,15 @@ export default function MemberDetailPage() {
           <table>
             <thead>
               <tr>
-                <th>课程</th>
-                <th>类别</th>
-                <th>状态</th>
+                <SortTh sortKey="course" activeKey={recSortKey} dir={recSortDir} onSort={toggleRecSort}>课程</SortTh>
+                <SortTh sortKey="category" activeKey={recSortKey} dir={recSortDir} onSort={toggleRecSort}>类别</SortTh>
+                <SortTh sortKey="status" activeKey={recSortKey} dir={recSortDir} onSort={toggleRecSort}>状态</SortTh>
                 <th style={{ width: 200 }}>进度</th>
-                <th>完成日期</th>
+                <SortTh sortKey="completed" activeKey={recSortKey} dir={recSortDir} onSort={toggleRecSort}>完成日期</SortTh>
               </tr>
             </thead>
             <tbody>
-              {records.map((t) => (
+              {sortedRecords.map((t) => (
                 <tr key={t.id}>
                   <td><strong>{t.training?.name ?? '—'}</strong></td>
                   <td>
@@ -184,7 +202,7 @@ export default function MemberDetailPage() {
                   <td className="muted tnum">{formatDate(t.completed_at)}</td>
                 </tr>
               ))}
-              {records.length === 0 && (
+              {sortedRecords.length === 0 && (
                 <tr>
                   <td colSpan={5} className="faint" style={{ textAlign: 'center', padding: 24 }}>
                     尚无培训记录。

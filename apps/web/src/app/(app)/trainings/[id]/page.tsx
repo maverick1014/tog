@@ -3,9 +3,10 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useFetch } from '@/lib/hooks';
+import { useSortableRows } from '@/lib/sort';
 import { api } from '@/lib/api';
 import { usePageChrome, useMe } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, SortTh, useConfirm, useToast } from '@/components/ui';
 import { can } from '@/lib/perms';
 import { exportMatrix } from '@/lib/export';
 import { EnrollmentRow, MemberRow, NamelistResponse, SessionRow, TrainingDetail } from '@/lib/types';
@@ -122,6 +123,13 @@ export default function TrainingDetailPage() {
 
   const nl = namelist.data;
 
+  const { sorted: sortedNamelist, sortKey: nlSortKey, sortDir: nlSortDir, toggleSort: toggleNlSort } =
+    useSortableRows(
+      nl?.rows ?? [],
+      (r, key) => (key === 'role' ? memberRoleZh(r.member) : r.member.full_name),
+      { key: 'name', dir: 'asc' },
+    );
+
   const exportNamelist = () => {
     if (!nl) return;
     const headers = [
@@ -130,7 +138,7 @@ export default function TrainingDetailPage() {
       ...nl.sessions.map((s) => `第${s.session_number}课 ${s.title ?? ''}`.trim()),
       '出席场次',
     ];
-    const matrix = nl.rows.map((r) => [
+    const matrix = sortedNamelist.map((r) => [
       r.member.full_name,
       memberRoleZh(r.member),
       ...r.attendance.map((a) => (a.attended ? '出席' : '缺席')),
@@ -257,8 +265,8 @@ export default function TrainingDetailPage() {
           <table>
             <thead>
               <tr>
-                <th>报名成员</th>
-                <th>身份</th>
+                <SortTh sortKey="name" activeKey={nlSortKey} dir={nlSortDir} onSort={toggleNlSort}>报名成员</SortTh>
+                <SortTh sortKey="role" activeKey={nlSortKey} dir={nlSortDir} onSort={toggleNlSort}>身份</SortTh>
                 {(nl?.sessions ?? []).map((s) => (
                   <th key={s.id} style={{ textAlign: 'center' }}>
                     第 {s.session_number} 课<br /><span style={{ fontWeight: 400 }}>{s.title ?? ''}</span>
@@ -267,7 +275,7 @@ export default function TrainingDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {(nl?.rows ?? []).map((r) => (
+              {sortedNamelist.map((r) => (
                 <tr key={r.member.id}>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <strong>{r.member.full_name}</strong>
@@ -286,7 +294,7 @@ export default function TrainingDetailPage() {
                   ))}
                 </tr>
               ))}
-              {(nl?.rows.length ?? 0) === 0 && (
+              {sortedNamelist.length === 0 && (
                 <tr>
                   <td colSpan={2 + (nl?.sessions.length ?? 0)} className="faint" style={{ textAlign: 'center', padding: 24 }}>
                     通过报名后，成员将出现在核对名单中。

@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
+import { useSortableRows } from '@/lib/sort';
 import { api } from '@/lib/api';
 import { usePageChrome, useMe } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, SortTh, useConfirm, useToast } from '@/components/ui';
 import { can } from '@/lib/perms';
 import { exportMatrix } from '@/lib/export';
 import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
@@ -137,6 +138,17 @@ function GroupPanel({
   const unassigned = useMemo(
     () => allMembers.filter((m) => m.group_id !== group.id),
     [allMembers, group.id],
+  );
+
+  const {
+    sorted: sortedGroupMembers,
+    sortKey: memberSortKey,
+    sortDir: memberSortDir,
+    toggleSort: toggleMemberSort,
+  } = useSortableRows(
+    groupMembers,
+    (m, key) => (key === 'position' ? positionZh(m.group_position) : m.full_name),
+    { key: 'name', dir: 'asc' },
   );
 
   const saveGroup = async () => {
@@ -303,8 +315,15 @@ function GroupPanel({
           )}
           <div className="table-wrap">
             <table>
+              <thead>
+                <tr>
+                  <SortTh sortKey="name" activeKey={memberSortKey} dir={memberSortDir} onSort={toggleMemberSort}>姓名</SortTh>
+                  <SortTh sortKey="position" activeKey={memberSortKey} dir={memberSortDir} onSort={toggleMemberSort}>身份</SortTh>
+                  <th />
+                </tr>
+              </thead>
               <tbody>
-                {groupMembers.map((m) => {
+                {sortedGroupMembers.map((m) => {
                   const cur = m.group_position;
                   return (
                     <tr key={m.id}>
@@ -331,9 +350,9 @@ function GroupPanel({
                     </tr>
                   );
                 })}
-                {groupMembers.length === 0 && (
+                {sortedGroupMembers.length === 0 && (
                   <tr>
-                    <td className="faint" style={{ textAlign: 'center', padding: 24 }}>
+                    <td colSpan={3} className="faint" style={{ textAlign: 'center', padding: 24 }}>
                       本组暂无成员，从上方选择加入。
                     </td>
                   </tr>
@@ -414,6 +433,18 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
     return map;
   }, [data]);
 
+  const presentCount = (memberId: string) => {
+    const inner = statusByMemberDate.get(memberId);
+    return weeks.filter((w) => inner?.get(w.date) === AttendanceStatus.Present).length;
+  };
+
+  const { sorted: sortedAttendanceRows, sortKey: attSortKey, sortDir: attSortDir, toggleSort: toggleAttSort } =
+    useSortableRows(
+      data?.rows ?? [],
+      (r, key) => (key === 'count' ? presentCount(r.member.id) : r.member.full_name),
+      { key: 'name', dir: 'asc' },
+    );
+
   const toggle = async (dateStr: string, memberId: string, present: boolean) => {
     const next = present ? AttendanceStatus.Absent : AttendanceStatus.Present;
     try {
@@ -437,14 +468,13 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
   const exportGrid = () => {
     if (!data) return;
     const headers = ['成员', ...weeks.map((w) => `第${w.no}周(${w.day}日)`), '出席次数'];
-    const matrix = (data.rows ?? []).map((r) => {
+    const matrix = sortedAttendanceRows.map((r) => {
       const inner = statusByMemberDate.get(r.member.id);
       const cells = weeks.map((w) => {
         const s = inner?.get(w.date);
         return s ? ATTENDANCE_LABELS[s] : '';
       });
-      const count = weeks.filter((w) => inner?.get(w.date) === AttendanceStatus.Present).length;
-      return [r.member.full_name, ...cells, count];
+      return [r.member.full_name, ...cells, presentCount(r.member.id)];
     });
     exportMatrix(`小组每周出席_${year}年${month}月`, '出席', headers, matrix);
   };
@@ -485,18 +515,18 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
           <table>
             <thead>
               <tr>
-                <th>成员</th>
+                <SortTh sortKey="name" activeKey={attSortKey} dir={attSortDir} onSort={toggleAttSort}>成员</SortTh>
                 {weeks.map((w) => (
                   <th key={w.date} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                     第{w.no}周
                     <div className="faint" style={{ fontSize: 10.5, fontWeight: 400 }}>{w.day}日</div>
                   </th>
                 ))}
-                <th style={{ textAlign: 'center' }}>出席</th>
+                <SortTh sortKey="count" activeKey={attSortKey} dir={attSortDir} onSort={toggleAttSort} align="center">出席</SortTh>
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((r) => {
+              {sortedAttendanceRows.map((r) => {
                 const inner = statusByMemberDate.get(r.member.id);
                 return (
                   <tr key={r.member.id}>
@@ -517,7 +547,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
                       );
                     })}
                     <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                      {weeks.filter((w) => inner?.get(w.date) === AttendanceStatus.Present).length}
+                      {presentCount(r.member.id)}
                     </td>
                   </tr>
                 );
