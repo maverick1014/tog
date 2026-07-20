@@ -232,7 +232,7 @@ export default function MembersPage() {
       </div>
 
       <div className="hint mt-14">
-        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训配对，并可在档案页编辑资料与身份。
+        💡 点击成员可查看<strong>培训档案</strong>与门训配对，并在档案页编辑资料与身份。
       </div>
 
       {addOpen && (
