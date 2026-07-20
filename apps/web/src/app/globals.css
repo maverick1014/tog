@@ -443,13 +443,6 @@ td {
 .tnum {
   font-variant-numeric: tabular-nums;
 }
-.row-click {
-  cursor: pointer;
-}
-.row-click:hover td {
-  background: var(--surface-2);
-}
-
 /* ==========================================================================
    Avatars, badges, dots
    ========================================================================== */
@@ -1207,8 +1200,5 @@ textarea {
     font-weight: 600;
     text-align: left;
     flex-shrink: 0;
-  }
-  table.stack .row-click:hover td {
-    background: transparent;
   }
 }

@@ -8,22 +8,19 @@ import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/comp
 import { can } from '@/lib/perms';
 import { exportMatrix } from '@/lib/export';
 import { GroupAttendanceResponse, GroupDetail, GroupRow, MemberRow } from '@/lib/types';
-import { ATTENDANCE_LABELS, positionZh, roleDot, roleTagStyle } from '@/lib/labels';
+import {
+  ATTENDANCE_LABELS,
+  GROUP_POSITION_OPTIONS as POSITION_OPTIONS,
+  positionZh,
+  roleDot,
+  roleTagStyle,
+} from '@/lib/labels';
 import {
   AttendanceStatus,
   canPromoteToLeadership,
   GroupPosition,
   LEADERSHIP_POSITIONS,
 } from '@tog/shared';
-
-const POSITION_OPTIONS: GroupPosition[] = [
-  GroupPosition.Leader,
-  GroupPosition.AssistantLeader,
-  GroupPosition.InternLeader,
-  GroupPosition.CoreMember,
-  GroupPosition.RegularMember,
-  GroupPosition.NewMember,
-];
 
 export default function GroupsPage() {
   const toast = useToast();

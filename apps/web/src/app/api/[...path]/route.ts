@@ -192,8 +192,10 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
   // ---- Events ---------------------------------------------------------------
   if (r0 === 'events') {
     if (!r1) {
-      if (method === 'GET')
+      if (method === 'GET') {
+        await ensureSundayServices(db);
         return json(unwrap(await db.from('events').select('*').order('starts_at', { ascending: false })));
+      }
       if (method === 'POST')
         return json(unwrap(await db.from('events').insert(await body()).select().single()));
     } else if (r2 === 'attendance' && method === 'POST') {
@@ -505,6 +507,60 @@ async function upsertProgress(
       )
       .select()
       .single(),
+  );
+}
+
+// Services run every Sunday, so the calendar shouldn't require a manual
+// "＋新增聚会" each week — ensure the upcoming Sundays already have a 主日崇拜
+// event before the list is returned. Idempotent (checks before inserting) and
+// only ever looks forward, so a Sunday a pastor deliberately deletes (e.g. a
+// holiday) only comes back once its date is more than SUNDAY_LOOKAHEAD_WEEKS
+// away again — never retroactively resurrected once it's in the past.
+const SUNDAY_LOOKAHEAD_WEEKS = 8;
+const SUNDAY_SERVICE_TIME = '10:00:00';
+const SUNDAY_SERVICE_LOCATION = '大堂';
+const CHURCH_TZ_OFFSET = '+08:00'; // Malaysia/Singapore time
+
+async function ensureSundayServices(db: ReturnType<typeof getDb>) {
+  const nowLocal = new Date(Date.now() + 8 * 3600 * 1000);
+  const todayLocal = new Date(
+    Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth(), nowLocal.getUTCDate()),
+  );
+  const daysUntilSunday = (7 - todayLocal.getUTCDay()) % 7; // 0 if today is Sunday
+
+  const sundays: string[] = [];
+  for (let i = 0; i < SUNDAY_LOOKAHEAD_WEEKS; i++) {
+    const d = new Date(todayLocal);
+    d.setUTCDate(d.getUTCDate() + daysUntilSunday + i * 7);
+    sundays.push(d.toISOString().slice(0, 10));
+  }
+
+  const existing = unwrap(
+    await db
+      .from('events')
+      .select('starts_at')
+      .eq('event_type', 'service')
+      .gte('starts_at', `${sundays[0]}T00:00:00${CHURCH_TZ_OFFSET}`)
+      .lte('starts_at', `${sundays[sundays.length - 1]}T23:59:59${CHURCH_TZ_OFFSET}`),
+  ) as Array<{ starts_at: string }>;
+  const existingDates = new Set(
+    existing.map((e) => new Date(new Date(e.starts_at).getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10)),
+  );
+
+  const missing = sundays.filter((iso) => !existingDates.has(iso));
+  if (missing.length === 0) return;
+
+  // Best-effort: two concurrent requests could both see the same Sunday
+  // missing. The unique index in 0005_events_unique_sunday_service.sql turns
+  // that race into a rejected insert rather than a duplicate event — either
+  // way, this must never fail the surrounding GET /events request over it.
+  await db.from('events').insert(
+    missing.map((iso) => ({
+      title: '主日崇拜',
+      event_type: 'service',
+      location: SUNDAY_SERVICE_LOCATION,
+      starts_at: `${iso}T${SUNDAY_SERVICE_TIME}${CHURCH_TZ_OFFSET}`,
+    })),
   );
 }
 

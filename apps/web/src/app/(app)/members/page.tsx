@@ -19,6 +19,8 @@ import {
 } from '@/lib/labels';
 import { ChurchRole, MemberStatus } from '@tog/shared';
 
+const UNASSIGNED = '__unassigned__';
+
 export default function MembersPage() {
   const router = useRouter();
   const toast = useToast();
@@ -26,12 +28,13 @@ export default function MembersPage() {
   const { data, initialLoading, error, reload } = useFetch<MemberRow[]>('/members');
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [groupFilter, setGroupFilter] = useState<string>('all');
   const [addOpen, setAddOpen] = useState(false);
 
   usePageChrome(
     {
       title: '成员目录',
-      subtitle: '身份只读，在「小组管理」逐人设定',
+      subtitle: '点击成员可查看及编辑身份',
       action: perms.write ? (
         <button className="btn" onClick={() => setAddOpen(true)}>
           ＋ 新增成员
@@ -53,15 +56,40 @@ export default function MembersPage() {
     return c;
   }, [members]);
 
+  // Life-group filter options, derived from the already-fetched member list
+  // (no extra request — G5: derive once instead of fetching the same data twice).
+  const groupOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    let unassigned = 0;
+    for (const m of members) {
+      if (m.group) {
+        const g = map.get(m.group.id) ?? { id: m.group.id, name: m.group.name, count: 0 };
+        g.count++;
+        map.set(m.group.id, g);
+      } else {
+        unassigned++;
+      }
+    }
+    return {
+      groups: [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh')),
+      unassigned,
+    };
+  }, [members]);
+
   const rows = useMemo(() => {
     const term = q.trim();
     return members.filter((m) => {
       const role = memberRoleZh(m);
       if (roleFilter !== 'all' && role !== roleFilter) return false;
+      if (groupFilter === UNASSIGNED) {
+        if (m.group) return false;
+      } else if (groupFilter !== 'all' && m.group?.id !== groupFilter) {
+        return false;
+      }
       if (term && !`${m.full_name}${m.chinese_name ?? ''}`.includes(term)) return false;
       return true;
     });
-  }, [members, q, roleFilter]);
+  }, [members, q, roleFilter, groupFilter]);
 
   const exportMembers = () => {
     exportRows(
@@ -86,31 +114,28 @@ export default function MembersPage() {
     <>
       <ErrorBanner message={error} />
 
-      <div className="flex gap-8 flex-wrap mb-12">
-        <button
-          className={`chip ${roleFilter === 'all' ? 'on' : ''}`}
-          onClick={() => setRoleFilter('all')}
-        >
-          全部 {counts.all}
-        </button>
-        {MEMBER_ROLE_FILTERS.map((r) => (
-          <button
-            key={r}
-            className={`chip ${roleFilter === r ? 'on' : ''}`}
-            onClick={() => setRoleFilter(r)}
-          >
-            {r} {counts[r] ?? 0}
-          </button>
-        ))}
-      </div>
-
       <div className="flex-between flex-wrap gap-8 mb-16">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="🔍 搜索姓名…"
-          style={{ maxWidth: 280, flex: 1 }}
-        />
+        <div className="flex gap-8 flex-wrap" style={{ flex: 1, minWidth: 220 }}>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="🔍 搜索姓名…"
+            style={{ maxWidth: 240, flex: 1, minWidth: 140 }}
+          />
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} style={{ maxWidth: 160 }}>
+            <option value="all">全部身份（{counts.all}）</option>
+            {MEMBER_ROLE_FILTERS.map((r) => (
+              <option key={r} value={r}>{r}（{counts[r] ?? 0}）</option>
+            ))}
+          </select>
+          <select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)} style={{ maxWidth: 160 }}>
+            <option value="all">所有小组</option>
+            {groupOptions.groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}（{g.count}）</option>
+            ))}
+            <option value={UNASSIGNED}>未分组（{groupOptions.unassigned}）</option>
+          </select>
+        </div>
         <button className="btn ghost sm" onClick={exportMembers} disabled={rows.length === 0}>
           ⬇ 导出 Excel
         </button>
@@ -135,7 +160,7 @@ export default function MembersPage() {
               {rows.map((m) => {
                 const role = memberRoleZh(m);
                 return (
-                  <tr key={m.id} className="row-click" onClick={() => router.push(`/members/${m.id}`)}>
+                  <tr key={m.id}>
                     <td>
                       <strong>{m.full_name}</strong>
                     </td>
@@ -151,7 +176,7 @@ export default function MembersPage() {
                     </td>
                     <td className="muted tnum">{formatDate(m.joined_at)}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <button className="btn ghost sm">档案 →</button>
+                      <button className="icon-btn" title="查看档案" onClick={() => router.push(`/members/${m.id}`)}>›</button>
                     </td>
                   </tr>
                 );
@@ -207,7 +232,7 @@ export default function MembersPage() {
       </div>
 
       <div className="hint mt-14">
-        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训配对。身份只读；在「小组管理」逐人设定。
+        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训配对，并可在档案页编辑资料与身份。
       </div>
 
       {addOpen && (
