@@ -140,7 +140,7 @@ export default function SettingsPage() {
               {list.map((u) => {
                 const role = u.member ? memberRoleZh(u.member) : '未分组';
                 return (
-                  <tr key={u.id} className="row-click" onClick={() => setDetailId(u.id)}>
+                  <tr key={u.id}>
                     <td data-label="账户 · 关联成员">
                       <strong>{u.member?.full_name ?? '—'}</strong>
                     </td>
@@ -151,7 +151,9 @@ export default function SettingsPage() {
                     <td className="muted" data-label="登录邮箱">{u.email}</td>
                     <td data-label="状态"><span className={`badge ${accountStatusClass(u.status)}`}>{accountStatusLabel(u.status)}</span></td>
                     <td className="muted" style={{ whiteSpace: 'nowrap' }} data-label="最近登录">{u.last_sign_in_at ? formatDateTime(u.last_sign_in_at) : '从未'}</td>
-                    <td style={{ textAlign: 'right' }}><button className="btn ghost sm">管理</button></td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="icon-btn" title="管理账户" onClick={() => setDetailId(u.id)}>›</button>
+                    </td>
                   </tr>
                 );
               })}

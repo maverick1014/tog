@@ -48,6 +48,20 @@ export const ROLE_ORDER = [
 export const MEMBER_ROLE_FILTERS = [...ROLE_ORDER, '未分组'] as const;
 
 /**
+ * The six in-group ranks, in promotion order — shared by 小组管理's position
+ * dropdown and the member-profile edit modal so both offer the same options
+ * with the same leadership rule (see `canPromoteToLeadership`).
+ */
+export const GROUP_POSITION_OPTIONS: GroupPosition[] = [
+  GroupPosition.Leader,
+  GroupPosition.AssistantLeader,
+  GroupPosition.InternLeader,
+  GroupPosition.CoreMember,
+  GroupPosition.RegularMember,
+  GroupPosition.NewMember,
+];
+
+/**
  * Per-role tag palette — matches the Claude Design `roleTags` exactly. Each
  * derived role gets its own colour family (bg / fg / dot), not a shared tone.
  */
