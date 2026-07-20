@@ -11,6 +11,14 @@ describe('displayRoleZh', () => {
     expect(displayRoleZh({ church_role: ChurchRole.Pastor, group_position: null })).toBe('牧师');
   });
 
+  it('returns 执事 for a deacon', () => {
+    expect(displayRoleZh({ church_role: ChurchRole.Deacon, group_position: null })).toBe('执事');
+  });
+
+  it('returns 同工 for a co-worker', () => {
+    expect(displayRoleZh({ church_role: ChurchRole.CoWorker, group_position: null })).toBe('同工');
+  });
+
   it('returns the group position label for a member with a position', () => {
     expect(
       displayRoleZh({ church_role: ChurchRole.Member, group_position: GroupPosition.Leader }),

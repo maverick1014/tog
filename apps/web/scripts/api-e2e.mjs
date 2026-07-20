@@ -145,15 +145,22 @@ async function main() {
 
   // ---- Accounts CRUD + password (super_admin) -----------------------------
   if (freeMembers.length) {
+    // An account's login email is always derived server-side from its linked
+    // member — set the member's email first (restored after), matching real usage.
+    const targetMember = freeMembers[0];
+    const originalEmail = targetMember.email ?? null;
     const email = `e2e-acct-${Date.now()}@grace.org`;
-    const mkAcc = await req('POST', '/api/accounts', { ...H, body: { member_id: freeMembers[0].id, email, account_role: 'coworker', password: 'e2ePass2026' } });
+    await req('PATCH', `/api/members/${targetMember.id}`, { ...H, body: { email } });
+    const mkAcc = await req('POST', '/api/accounts', { ...H, body: { member_id: targetMember.id, account_role: 'coworker', password: 'e2ePass2026' } });
     ok('create account → 200 + id', mkAcc.status === 200 && mkAcc.json?.id, `status ${mkAcc.status}`);
+    ok('account email follows member', mkAcc.json?.email === email, mkAcc.json?.email);
     const accId = mkAcc.json?.id;
     if (accId) {
       ok('update account role → 200', (await req('PATCH', `/api/accounts/${accId}`, { ...H, body: { account_role: 'admin' } })).status === 200);
       ok('reset account password → 200', (await req('POST', `/api/accounts/${accId}/password`, { ...H, body: { password: 'newPass2026' } })).status === 200);
       ok('delete account → 200', (await req('DELETE', `/api/accounts/${accId}`, H)).status === 200);
     }
+    await req('PATCH', `/api/members/${targetMember.id}`, { ...H, body: { email: originalEmail } });
   }
 
   // ---- Access control: provision role accounts, assert the matrix ---------
@@ -171,9 +178,12 @@ async function roleMatrix(freeMembers) {
   const admin = await login(EMAIL, PASSWORD);
   const H = { cookie: admin };
   const made = [];
+  const originalEmails = new Map();
   const provision = async (role, member) => {
     const email = `e2e-${role}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@grace.org`;
-    const r = await req('POST', '/api/accounts', { ...H, body: { member_id: member.id, email, account_role: role, password: 'e2ePass2026' } });
+    if (!originalEmails.has(member.id)) originalEmails.set(member.id, member.email ?? null);
+    await req('PATCH', `/api/members/${member.id}`, { ...H, body: { email } });
+    const r = await req('POST', '/api/accounts', { ...H, body: { member_id: member.id, account_role: role, password: 'e2ePass2026' } });
     if (r.json?.id) made.push(r.json.id);
     return { email, cookie: await login(email, 'e2ePass2026') };
   };
@@ -200,6 +210,7 @@ async function roleMatrix(freeMembers) {
     }
   } finally {
     for (const id of made) await req('DELETE', `/api/accounts/${id}`, H);
+    for (const [id, email] of originalEmails) await req('PATCH', `/api/members/${id}`, { ...H, body: { email } });
   }
 }
 

@@ -8,15 +8,8 @@ import { usePageChrome, useMe } from '@/components/AppShell';
 import { Avatar, ErrorBanner, Field, Loading, Modal, ProgressBar, RoleBadge, useConfirm, useToast } from '@/components/ui';
 import { PairProgressModal } from '@/components/PairProgressModal';
 import { can } from '@/lib/perms';
-import { EnrollmentRow, GroupDetail, MemberRow, PairRow } from '@/lib/types';
-import {
-  ChurchRole,
-  GroupPosition,
-  LEADERSHIP_POSITIONS,
-  MemberStatus,
-  Gender,
-  canPromoteToLeadership,
-} from '@tog/shared';
+import { EnrollmentRow, GroupDetail, GroupRow, MemberRow, PairRow } from '@/lib/types';
+import { ChurchRole, GroupPosition, LEADERSHIP_POSITIONS, MemberStatus, Gender } from '@tog/shared';
 import {
   categoryBadgeClass,
   ENROLLMENT_STATUS_LABELS,
@@ -263,16 +256,29 @@ function EditMemberModal({
     status: member.status,
     notes: member.notes ?? '',
     church_role: member.church_role,
+    group_id: member.group_id ?? '',
     group_position: member.group_position ?? GroupPosition.NewMember,
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Only relevant when the member already belongs to a group — the position
-  // dropdown enforces the same one-holder-per-leadership-slot rule as 小组管理
-  // (auto-demoting whoever currently holds that slot in the same group).
-  const group = useFetch<GroupDetail>(member.group_id ? `/groups/${member.group_id}` : null);
-  const curPosition = member.group_position;
+  const allGroups = useFetch<GroupRow[]>('/groups');
+  // Sibling members of whichever group is currently SELECTED (not necessarily
+  // the member's original group) — used to auto-demote whoever currently
+  // holds a leadership slot when someone new is assigned to it (one holder
+  // per leadership position per group).
+  const groupDetail = useFetch<GroupDetail>(form.group_id ? `/groups/${form.group_id}` : null);
+
+  const changeGroup = (groupId: string) => {
+    setForm({
+      ...form,
+      group_id: groupId,
+      group_position:
+        groupId === (member.group_id ?? '')
+          ? member.group_position ?? GroupPosition.NewMember
+          : GroupPosition.NewMember,
+    });
+  };
 
   const save = async () => {
     if (!form.full_name.trim()) {
@@ -282,8 +288,8 @@ function EditMemberModal({
     setSaving(true);
     setErr(null);
     try {
-      if (member.group_id && LEADERSHIP_POSITIONS.includes(form.group_position)) {
-        const incumbent = (group.data?.members ?? []).find(
+      if (form.group_id && LEADERSHIP_POSITIONS.includes(form.group_position)) {
+        const incumbent = (groupDetail.data?.members ?? []).find(
           (m) => m.id !== member.id && m.group_position === form.group_position,
         );
         if (incumbent) {
@@ -301,7 +307,8 @@ function EditMemberModal({
         status: form.status,
         notes: form.notes || null,
         church_role: form.church_role,
-        group_position: member.group_id ? form.group_position : null,
+        group_id: form.group_id || null,
+        group_position: form.group_id ? form.group_position : null,
       });
       onSaved();
     } catch (e) {
@@ -347,45 +354,52 @@ function EditMemberModal({
       </div>
       <div className="form-row">
         <Field label="生日">
-          <input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
+          <input type="date" className={form.date_of_birth ? undefined : 'date-empty'} value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
         </Field>
         <Field label="加入日期">
-          <input type="date" value={form.joined_at} onChange={(e) => setForm({ ...form, joined_at: e.target.value })} />
+          <input type="date" className={form.joined_at ? undefined : 'date-empty'} value={form.joined_at} onChange={(e) => setForm({ ...form, joined_at: e.target.value })} />
         </Field>
       </div>
+      <Field label="所属小组">
+        <select value={form.group_id} onChange={(e) => changeGroup(e.target.value)}>
+          <option value="">未分组</option>
+          {(allGroups.data ?? []).map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+      </Field>
       <div className="form-row">
-        <Field label="牧者身份">
+        <Field label="教会身份">
           <select value={form.church_role} onChange={(e) => setForm({ ...form, church_role: e.target.value as ChurchRole })}>
             <option value={ChurchRole.Member}>一般成员</option>
+            <option value={ChurchRole.CoWorker}>同工</option>
+            <option value={ChurchRole.Deacon}>执事</option>
             <option value={ChurchRole.Pastor}>牧师</option>
           </select>
         </Field>
-        <Field label="在组身份">
-          <select
-            value={form.group_position}
-            onChange={(e) => setForm({ ...form, group_position: e.target.value as GroupPosition })}
-            disabled={!member.group_id}
-          >
-            {GROUP_POSITION_OPTIONS.map((p) => {
-              const isLeadership = LEADERSHIP_POSITIONS.includes(p);
-              const disabled = isLeadership && !canPromoteToLeadership(curPosition);
-              return (
-                <option key={p} value={p} disabled={disabled && p !== curPosition}>
-                  {positionZh(p)}
-                </option>
-              );
-            })}
-          </select>
-        </Field>
+        {/* Only meaningful once a group is chosen — hidden rather than shown
+            disabled, so there's nothing implying a rank that doesn't apply. */}
+        {form.group_id && (
+          <Field label="小组身份">
+            <select
+              value={form.group_position}
+              onChange={(e) => setForm({ ...form, group_position: e.target.value as GroupPosition })}
+            >
+              {GROUP_POSITION_OPTIONS.map((p) => (
+                <option key={p} value={p}>{positionZh(p)}</option>
+              ))}
+            </select>
+          </Field>
+        )}
       </div>
       <Field label="备注">
         <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
       </Field>
       <div className="hint" style={{ marginBottom: 6 }}>
-        {member.group_id ? (
-          <>💡 只有<strong>核心成员</strong>可晋升为小组长 / 副组长 / 实习组长；指派新的领袖会自动将原领袖降为核心成员。所属小组仍在「小组管理」设定。</>
+        {form.group_id ? (
+          <>💡 指派新的领袖会自动将原领袖降为核心成员。</>
         ) : (
-          <>💡 该成员尚未加入小组，在组身份暂不可设定；请先在「小组管理」将其加入小组。</>
+          <>💡 该成员尚未加入小组，小组身份暂不可设定；先在上方选择所属小组。</>
         )}
       </div>
       <div className="modal-actions">

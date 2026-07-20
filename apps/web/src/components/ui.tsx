@@ -160,9 +160,18 @@ export function Modal({
   size?: 'wide' | 'narrow';
 }) {
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className={`modal ${size ?? ''}`} onClick={(e) => e.stopPropagation()}>
-        {title && <h3>{title}</h3>}
+    // Clicking the backdrop is deliberately a no-op — an accidental click
+    // outside the dialog must never discard an in-progress edit. Every modal
+    // gets an explicit close affordance instead (the ✕ here, or the caller's
+    // own header for modals that pass a custom title area via `children`).
+    <div className="modal-backdrop">
+      <div className={`modal ${size ?? ''}`}>
+        {title && (
+          <div className="flex-between" style={{ alignItems: 'flex-start', marginBottom: 16 }}>
+            <h3 style={{ margin: 0 }}>{title}</h3>
+            <button className="icon-btn" style={{ flexShrink: 0 }} onClick={onClose} title="关闭">✕</button>
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -260,8 +269,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {state && (
-        <div className="modal-backdrop" onClick={() => close(false)}>
-          <div className="modal narrow" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <div className="modal-backdrop">
+          <div className="modal narrow" style={{ maxWidth: 400 }}>
             {state.title && <h3>{state.title}</h3>}
             <div style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.7, margin: '2px 0 4px' }}>
               {state.message}

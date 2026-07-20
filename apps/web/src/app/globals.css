@@ -661,6 +661,15 @@ input[type='checkbox']:focus,
 input[type='radio']:focus {
   box-shadow: none;
 }
+/* An empty date/datetime input shows a "dd/mm/yyyy"-style pattern by default
+   (this is the browser's internal segment display, not the `placeholder`
+   attribute — `:placeholder-shown` does not match it). `.date-empty` is added
+   in JS when the bound value is empty, so an at-rest empty field just looks
+   empty like every other empty input. It un-hides on focus so a value typed
+   mid-entry (before a complete date exists) is still visible while editing. */
+input.date-empty:not(:focus) {
+  color: transparent;
+}
 textarea {
   resize: vertical;
 }
@@ -760,6 +769,7 @@ textarea {
   gap: 6px;
 }
 .day-cell {
+  position: relative;
   aspect-ratio: 1;
   border-radius: 6px;
   display: grid;
@@ -771,6 +781,18 @@ textarea {
   color: var(--faint);
   user-select: none;
   font-variant-numeric: tabular-nums;
+}
+/* Marks a day that has a mentor remark — visible at a glance without opening it. */
+.day-cell .note-star {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--accent);
+}
+.day-cell.done .note-star {
+  color: #fff;
 }
 .day-cell.done {
   background: var(--brand);

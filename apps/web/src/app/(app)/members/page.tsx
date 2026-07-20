@@ -8,16 +8,18 @@ import { usePageChrome, useMe } from '@/components/AppShell';
 import { ErrorBanner, Field, Loading, Modal, RoleBadge, useToast } from '@/components/ui';
 import { can } from '@/lib/perms';
 import { exportRows } from '@/lib/export';
-import { MemberRow } from '@/lib/types';
+import { GroupDetail, GroupRow, MemberRow } from '@/lib/types';
 import {
   formatDate,
   GENDER_LABELS,
+  GROUP_POSITION_OPTIONS,
   MEMBER_ROLE_FILTERS,
   memberRoleZh,
   memberStatusClass,
   memberStatusLabel,
+  positionZh,
 } from '@/lib/labels';
-import { ChurchRole, MemberStatus } from '@tog/shared';
+import { ChurchRole, GroupPosition, LEADERSHIP_POSITIONS, MemberStatus } from '@tog/shared';
 
 const UNASSIGNED = '__unassigned__';
 
@@ -232,7 +234,7 @@ export default function MembersPage() {
       </div>
 
       <div className="hint mt-14">
-        💡 点击任意成员可查看<strong>个人培训档案</strong>（参加过的课程与进度）与门训配对，并可在档案页编辑资料与身份。
+        💡 点击成员可查看<strong>培训档案</strong>与门训配对，并在档案页编辑资料与身份。
       </div>
 
       {addOpen && (
@@ -256,15 +258,23 @@ function AddMemberModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const allGroups = useFetch<GroupRow[]>('/groups');
   const [form, setForm] = useState({
     full_name: '',
+    chinese_name: '',
     phone: '',
     email: '',
-    status: MemberStatus.Active as MemberStatus,
-    joined_at: '',
+    group_id: '',
+    church_role: ChurchRole.Member as ChurchRole,
+    group_position: GroupPosition.NewMember as GroupPosition,
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Only fetched to auto-demote an incumbent if this new member is placed
+  // straight into a leadership slot (one holder per leadership position
+  // per group — same rule as 小组管理 and the member-edit modal).
+  const groupDetail = useFetch<GroupDetail>(form.group_id ? `/groups/${form.group_id}` : null);
 
   const save = async () => {
     if (!form.full_name.trim()) {
@@ -274,13 +284,22 @@ function AddMemberModal({
     setSaving(true);
     setErr(null);
     try {
+      if (form.group_id && LEADERSHIP_POSITIONS.includes(form.group_position)) {
+        const incumbent = (groupDetail.data?.members ?? []).find(
+          (m) => m.group_position === form.group_position,
+        );
+        if (incumbent) {
+          await api.patch(`/members/${incumbent.id}`, { group_position: GroupPosition.CoreMember });
+        }
+      }
       await api.post('/members', {
         full_name: form.full_name.trim(),
-        church_role: ChurchRole.Member,
-        status: form.status,
+        chinese_name: form.chinese_name || undefined,
         phone: form.phone || undefined,
         email: form.email || undefined,
-        joined_at: form.joined_at || undefined,
+        church_role: form.church_role,
+        group_id: form.group_id || undefined,
+        group_position: form.group_id ? form.group_position : undefined,
       });
       onSaved();
     } catch (e) {
@@ -293,37 +312,24 @@ function AddMemberModal({
   return (
     <Modal title="新增成员" onClose={onClose}>
       {err && <ErrorBanner message={err} />}
-      <Field label="姓名">
-        <input
-          value={form.full_name}
-          onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-          placeholder="中文姓名"
-        />
-      </Field>
+      <div className="form-row">
+        <Field label="姓名">
+          <input
+            value={form.full_name}
+            onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+            placeholder="中文姓名"
+          />
+        </Field>
+        <Field label="昵称 / 别名">
+          <input value={form.chinese_name} onChange={(e) => setForm({ ...form, chinese_name: e.target.value })} />
+        </Field>
+      </div>
       <div className="form-row">
         <Field label="电话">
           <input
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
             placeholder="012-000 0000"
-          />
-        </Field>
-        <Field label="状态">
-          <select
-            value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value as MemberStatus })}
-          >
-            <option value={MemberStatus.Active}>在册</option>
-            <option value={MemberStatus.Inactive}>停止聚会</option>
-          </select>
-        </Field>
-      </div>
-      <div className="form-row">
-        <Field label="加入日期">
-          <input
-            type="date"
-            value={form.joined_at}
-            onChange={(e) => setForm({ ...form, joined_at: e.target.value })}
           />
         </Field>
         <Field label="邮箱">
@@ -334,8 +340,35 @@ function AddMemberModal({
           />
         </Field>
       </div>
-      <div className="hint" style={{ marginBottom: 6 }}>
-        💡 身份（组长 / 成员等）在「小组管理」逐人设定，此处不填写。
+      <Field label="所属小组">
+        <select value={form.group_id} onChange={(e) => setForm({ ...form, group_id: e.target.value })}>
+          <option value="">未分组</option>
+          {(allGroups.data ?? []).map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+      </Field>
+      <div className="form-row">
+        <Field label="教会身份">
+          <select value={form.church_role} onChange={(e) => setForm({ ...form, church_role: e.target.value as ChurchRole })}>
+            <option value={ChurchRole.Member}>一般成员</option>
+            <option value={ChurchRole.CoWorker}>同工</option>
+            <option value={ChurchRole.Deacon}>执事</option>
+            <option value={ChurchRole.Pastor}>牧师</option>
+          </select>
+        </Field>
+        {form.group_id && (
+          <Field label="小组身份">
+            <select
+              value={form.group_position}
+              onChange={(e) => setForm({ ...form, group_position: e.target.value as GroupPosition })}
+            >
+              {GROUP_POSITION_OPTIONS.map((p) => (
+                <option key={p} value={p}>{positionZh(p)}</option>
+              ))}
+            </select>
+          </Field>
+        )}
       </div>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
