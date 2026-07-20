@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
+import { useSortableRows } from '@/lib/sort';
 import { api } from '@/lib/api';
 import { usePageChrome, useMe } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, useConfirm, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, SortTh, useConfirm, useToast } from '@/components/ui';
 import { PairProgressModal } from '@/components/PairProgressModal';
 import { can } from '@/lib/perms';
 import { MemberRow, OverviewRow, PairRow, ProgramRow } from '@/lib/types';
@@ -117,6 +118,22 @@ export default function DiscipleshipPage() {
   const forest = useMemo(() => buildForest(nodes), [nodes]);
   const doneList = nodes.filter((n) => classify(n) === 'done');
   const pendingList = nodes.filter((n) => classify(n) === 'pending');
+
+  const { sorted: sortedNodes, sortKey: nodeSortKey, sortDir: nodeSortDir, toggleSort: toggleNodeSort } =
+    useSortableRows(
+      nodes,
+      (n, key) => {
+        switch (key) {
+          case 'pct':
+            return n.pct;
+          case 'status':
+            return PAIR_STATUS_LABELS[n.pair.status] ?? n.pair.status;
+          default:
+            return n.pair.trainee?.full_name;
+        }
+      },
+      { key: 'name', dir: 'asc' },
+    );
 
   const renderForest = (full = false) => (
     <div
@@ -252,14 +269,14 @@ export default function DiscipleshipPage() {
           <table>
             <thead>
               <tr>
-                <th>配对（被带领 ← 带领）</th>
-                <th style={{ width: 200 }}>进度</th>
-                <th>状态</th>
+                <SortTh sortKey="name" activeKey={nodeSortKey} dir={nodeSortDir} onSort={toggleNodeSort}>配对（被带领 ← 带领）</SortTh>
+                <SortTh sortKey="pct" activeKey={nodeSortKey} dir={nodeSortDir} onSort={toggleNodeSort} style={{ width: 200 }}>进度</SortTh>
+                <SortTh sortKey="status" activeKey={nodeSortKey} dir={nodeSortDir} onSort={toggleNodeSort}>状态</SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {nodes.map((n) => (
+              {sortedNodes.map((n) => (
                 <tr key={n.pair.id}>
                   <td>
                     <strong>{n.pair.trainee?.full_name}</strong>
@@ -281,7 +298,7 @@ export default function DiscipleshipPage() {
                   </td>
                 </tr>
               ))}
-              {nodes.length === 0 && (
+              {sortedNodes.length === 0 && (
                 <tr><td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无配对。</td></tr>
               )}
             </tbody>
@@ -290,7 +307,7 @@ export default function DiscipleshipPage() {
 
         {/* Mobile — list tiles: 被带领 ← 带领 + 表单, then progress · status */}
         <div className="only-mobile" style={{ marginTop: 4 }}>
-          {nodes.map((n) => (
+          {sortedNodes.map((n) => (
             <div key={n.pair.id} className="mtile" onClick={() => setPopup(n)}>
               <div className="mtile-row1">
                 <div style={{ minWidth: 0 }}>
@@ -329,7 +346,7 @@ export default function DiscipleshipPage() {
               </div>
             </div>
           ))}
-          {nodes.length === 0 && (
+          {sortedNodes.length === 0 && (
             <div className="faint" style={{ textAlign: 'center', padding: 24 }}>尚无配对。</div>
           )}
         </div>

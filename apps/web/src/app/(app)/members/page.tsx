@@ -3,9 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
+import { useSortableRows } from '@/lib/sort';
 import { api } from '@/lib/api';
 import { usePageChrome, useMe } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, Modal, RoleBadge, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, Modal, RoleBadge, SortTh, useToast } from '@/components/ui';
 import { can } from '@/lib/perms';
 import { exportRows } from '@/lib/export';
 import { GroupDetail, GroupRow, MemberRow } from '@/lib/types';
@@ -93,11 +94,34 @@ export default function MembersPage() {
     });
   }, [members, q, roleFilter, groupFilter]);
 
+  const getSortValue = (m: MemberRow, key: string): string | number | null | undefined => {
+    switch (key) {
+      case 'name':
+        return m.full_name;
+      case 'role':
+        return (MEMBER_ROLE_FILTERS as readonly string[]).indexOf(memberRoleZh(m));
+      case 'group':
+        return m.group?.name ?? undefined;
+      case 'phone':
+        return m.phone ?? undefined;
+      case 'status':
+        return memberStatusLabel(m.status);
+      case 'joined':
+        return m.joined_at ?? undefined;
+      default:
+        return undefined;
+    }
+  };
+  const { sorted, sortKey, sortDir, toggleSort } = useSortableRows(rows, getSortValue, {
+    key: 'role',
+    dir: 'asc',
+  });
+
   const exportMembers = () => {
     exportRows(
       '成员目录',
       '成员',
-      rows.map((m) => ({
+      sorted.map((m) => ({
         姓名: m.full_name,
         身份: memberRoleZh(m),
         所属小组: m.group?.name ?? '未分组',
@@ -138,7 +162,7 @@ export default function MembersPage() {
             <option value={UNASSIGNED}>未分组（{groupOptions.unassigned}）</option>
           </select>
         </div>
-        <button className="btn ghost sm" onClick={exportMembers} disabled={rows.length === 0}>
+        <button className="btn ghost sm" onClick={exportMembers} disabled={sorted.length === 0}>
           ⬇ 导出 Excel
         </button>
       </div>
@@ -149,17 +173,17 @@ export default function MembersPage() {
           <table>
             <thead>
               <tr>
-                <th>成员</th>
-                <th>身份</th>
-                <th>所属小组</th>
-                <th>联系方式</th>
-                <th>状态</th>
-                <th>加入日期</th>
+                <SortTh sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>成员</SortTh>
+                <SortTh sortKey="role" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>身份</SortTh>
+                <SortTh sortKey="group" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>所属小组</SortTh>
+                <SortTh sortKey="phone" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>联系方式</SortTh>
+                <SortTh sortKey="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>状态</SortTh>
+                <SortTh sortKey="joined" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>加入日期</SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => {
+              {sorted.map((m) => {
                 const role = memberRoleZh(m);
                 return (
                   <tr key={m.id}>
@@ -183,7 +207,7 @@ export default function MembersPage() {
                   </tr>
                 );
               })}
-              {rows.length === 0 && (
+              {sorted.length === 0 && (
                 <tr>
                   <td colSpan={7} className="faint" style={{ textAlign: 'center', padding: 28 }}>
                     没有符合条件的成员。
@@ -197,7 +221,7 @@ export default function MembersPage() {
 
       {/* Mobile — list tiles: name + 档案, 身份·小组, 联系方式, 状态·加入日期 */}
       <div className="only-mobile">
-        {rows.map((m) => {
+        {sorted.map((m) => {
           const role = memberRoleZh(m);
           return (
             <div key={m.id} className="mtile" onClick={() => router.push(`/members/${m.id}`)}>
@@ -226,7 +250,7 @@ export default function MembersPage() {
             </div>
           );
         })}
-        {rows.length === 0 && (
+        {sorted.length === 0 && (
           <div className="faint" style={{ textAlign: 'center', padding: 28 }}>
             没有符合条件的成员。
           </div>
