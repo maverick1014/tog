@@ -128,7 +128,7 @@ export default function SettingsPage() {
             <thead>
               <tr>
                 <th>账户 · 关联成员</th>
-                <th>在组身份</th>
+                <th>小组身份</th>
                 <th>权限角色</th>
                 <th>登录邮箱</th>
                 <th>状态</th>
@@ -144,7 +144,7 @@ export default function SettingsPage() {
                     <td data-label="账户 · 关联成员">
                       <strong>{u.member?.full_name ?? '—'}</strong>
                     </td>
-                    <td data-label="在组身份">
+                    <td data-label="小组身份">
                       <RoleBadge role={role} />
                     </td>
                     <td data-label="权限角色"><span className={`badge ${accountRoleClass(u.account_role)}`}>{ACCOUNT_ROLE_ZH[u.account_role]}</span></td>

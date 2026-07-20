@@ -354,13 +354,13 @@ function EditMemberModal({
         </Field>
       </div>
       <div className="form-row">
-        <Field label="牧者身份">
+        <Field label="教会身份">
           <select value={form.church_role} onChange={(e) => setForm({ ...form, church_role: e.target.value as ChurchRole })}>
             <option value={ChurchRole.Member}>一般成员</option>
             <option value={ChurchRole.Pastor}>牧师</option>
           </select>
         </Field>
-        <Field label="在组身份">
+        <Field label="小组身份">
           <select
             value={form.group_position}
             onChange={(e) => setForm({ ...form, group_position: e.target.value as GroupPosition })}
@@ -385,7 +385,7 @@ function EditMemberModal({
         {member.group_id ? (
           <>💡 只有<strong>核心成员</strong>可晋升为小组长 / 副组长 / 实习组长；指派新的领袖会自动将原领袖降为核心成员。所属小组仍在「小组管理」设定。</>
         ) : (
-          <>💡 该成员尚未加入小组，在组身份暂不可设定；请先在「小组管理」将其加入小组。</>
+          <>💡 该成员尚未加入小组，小组身份暂不可设定；请先在「小组管理」将其加入小组。</>
         )}
       </div>
       <div className="modal-actions">
