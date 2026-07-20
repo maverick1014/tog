@@ -12,6 +12,8 @@
  */
 export enum ChurchRole {
   Pastor = 'pastor', // 牧师
+  Deacon = 'deacon', // 执事
+  CoWorker = 'co_worker', // 同工
   Member = 'member', // 一般成员 (real rank derived from group position)
 }
 
@@ -44,9 +46,11 @@ export const GROUP_POSITION_LABELS: Record<GroupPosition, { en: string; zh: stri
   [GroupPosition.NewMember]: { en: 'New Member', zh: '新成员' },
 };
 
-/** Full display order for the seven ranks (pastor first, then group positions). */
+/** Full display order for the ranks (church-wide roles first, then group positions). */
 export const DISPLAY_ROLE_ORDER: string[] = [
   '牧师',
+  '执事',
+  '同工',
   '小组长',
   '副组长',
   '实习组长',
@@ -55,12 +59,14 @@ export const DISPLAY_ROLE_ORDER: string[] = [
   '新成员',
 ];
 
-/** The role shown in the directory: 牧师 if pastor, else the group position. */
+/** The role shown in the directory: the church-wide role if set, else the group position. */
 export function displayRoleZh(m: {
   church_role: ChurchRole;
   group_position: GroupPosition | null;
 }): string {
   if (m.church_role === ChurchRole.Pastor) return '牧师';
+  if (m.church_role === ChurchRole.Deacon) return '执事';
+  if (m.church_role === ChurchRole.CoWorker) return '同工';
   if (m.group_position) return GROUP_POSITION_LABELS[m.group_position].zh;
   return '未分组';
 }

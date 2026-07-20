@@ -9,14 +9,7 @@ import { Avatar, ErrorBanner, Field, Loading, Modal, ProgressBar, RoleBadge, use
 import { PairProgressModal } from '@/components/PairProgressModal';
 import { can } from '@/lib/perms';
 import { EnrollmentRow, GroupDetail, GroupRow, MemberRow, PairRow } from '@/lib/types';
-import {
-  ChurchRole,
-  GroupPosition,
-  LEADERSHIP_POSITIONS,
-  MemberStatus,
-  Gender,
-  canPromoteToLeadership,
-} from '@tog/shared';
+import { ChurchRole, GroupPosition, LEADERSHIP_POSITIONS, MemberStatus, Gender } from '@tog/shared';
 import {
   categoryBadgeClass,
   ENROLLMENT_STATUS_LABELS,
@@ -271,13 +264,10 @@ function EditMemberModal({
 
   const allGroups = useFetch<GroupRow[]>('/groups');
   // Sibling members of whichever group is currently SELECTED (not necessarily
-  // the member's original group) — the position dropdown enforces the same
-  // one-holder-per-leadership-slot rule as 小组管理 (auto-demoting whoever
-  // currently holds that slot in that group).
+  // the member's original group) — used to auto-demote whoever currently
+  // holds a leadership slot when someone new is assigned to it (one holder
+  // per leadership position per group).
   const groupDetail = useFetch<GroupDetail>(form.group_id ? `/groups/${form.group_id}` : null);
-  // A member's existing rank only carries over if they're staying in the same
-  // group; moving to a different (or no) group starts them fresh.
-  const curPosition = form.group_id === (member.group_id ?? '') ? member.group_position : null;
 
   const changeGroup = (groupId: string) => {
     setForm({
@@ -382,33 +372,32 @@ function EditMemberModal({
         <Field label="教会身份">
           <select value={form.church_role} onChange={(e) => setForm({ ...form, church_role: e.target.value as ChurchRole })}>
             <option value={ChurchRole.Member}>一般成员</option>
+            <option value={ChurchRole.CoWorker}>同工</option>
+            <option value={ChurchRole.Deacon}>执事</option>
             <option value={ChurchRole.Pastor}>牧师</option>
           </select>
         </Field>
-        <Field label="小组身份">
-          <select
-            value={form.group_position}
-            onChange={(e) => setForm({ ...form, group_position: e.target.value as GroupPosition })}
-            disabled={!form.group_id}
-          >
-            {GROUP_POSITION_OPTIONS.map((p) => {
-              const isLeadership = LEADERSHIP_POSITIONS.includes(p);
-              const disabled = isLeadership && !canPromoteToLeadership(curPosition);
-              return (
-                <option key={p} value={p} disabled={disabled && p !== curPosition}>
-                  {positionZh(p)}
-                </option>
-              );
-            })}
-          </select>
-        </Field>
+        {/* Only meaningful once a group is chosen — hidden rather than shown
+            disabled, so there's nothing implying a rank that doesn't apply. */}
+        {form.group_id && (
+          <Field label="小组身份">
+            <select
+              value={form.group_position}
+              onChange={(e) => setForm({ ...form, group_position: e.target.value as GroupPosition })}
+            >
+              {GROUP_POSITION_OPTIONS.map((p) => (
+                <option key={p} value={p}>{positionZh(p)}</option>
+              ))}
+            </select>
+          </Field>
+        )}
       </div>
       <Field label="备注">
         <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
       </Field>
       <div className="hint" style={{ marginBottom: 6 }}>
         {form.group_id ? (
-          <>💡 只有<strong>核心成员</strong>可晋升为小组长 / 副组长 / 实习组长；指派新的领袖会自动将原领袖降为核心成员。</>
+          <>💡 指派新的领袖会自动将原领袖降为核心成员。</>
         ) : (
           <>💡 该成员尚未加入小组，小组身份暂不可设定；先在上方选择所属小组。</>
         )}

@@ -24,9 +24,10 @@ export const fetchCache = 'force-no-store';
 
 const MEMBER_SELECT = '*, group:groups(id,name), household:households(id,name)';
 const MEMBER_BRIEF = 'id,full_name,church_role,group_position';
+const ACCOUNT_MEMBER_BRIEF = 'id,full_name,email,church_role,group_position';
 const PAIR_SELECT =
   '*, mentor:members!discipleship_pairs_mentor_id_fkey(id,full_name,church_role,group_position), trainee:members!discipleship_pairs_trainee_id_fkey(id,full_name,church_role,group_position)';
-const ACCOUNT_SELECT = `*, member:members(${MEMBER_BRIEF})`;
+const ACCOUNT_SELECT = `*, member:members(${ACCOUNT_MEMBER_BRIEF})`;
 
 async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Response> {
   const { path } = await ctx.params;
@@ -442,7 +443,7 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
           unwrap(
             await db
               .from('app_users')
-              .insert(await accountWrite(await body()))
+              .insert(await accountWrite(db, await body()))
               .select(ACCOUNT_SELECT)
               .single(),
           ),
@@ -450,17 +451,21 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
     } else if (!r2) {
       if (method === 'GET')
         return json(unwrap(await db.from('app_users').select(ACCOUNT_SELECT).eq('id', r1).single()));
-      if (method === 'PATCH')
+      if (method === 'PATCH') {
+        const existing = unwrap(
+          await db.from('app_users').select('member_id').eq('id', r1).single<{ member_id: string }>(),
+        );
         return json(
           unwrap(
             await db
               .from('app_users')
-              .update(await accountWrite(await body()))
+              .update(await accountWrite(db, await body(), { existingMemberId: existing.member_id }))
               .eq('id', r1)
               .select(ACCOUNT_SELECT)
               .single(),
           ),
         );
+      }
       if (method === 'DELETE') {
         unwrap(await db.from('app_users').delete().eq('id', r1).select().single());
         return json({ id: r1 });
@@ -727,11 +732,26 @@ async function authRoute(
  * Normalize an account create/update payload: a plaintext `password` field is
  * hashed into `password_hash` and stripped, so passwords are never stored raw.
  */
-async function accountWrite(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const { password, ...rest } = body;
+// An account's login email always mirrors its linked member's own email — it
+// is never independently settable, even via a direct API call — so silently
+// drop whatever `email` the caller sent and re-derive it from `members`.
+async function accountWrite(
+  db: ReturnType<typeof getDb>,
+  body: Record<string, unknown>,
+  opts: { existingMemberId?: string } = {},
+): Promise<Record<string, unknown>> {
+  const { password, email: _email, ...rest } = body;
   if (typeof password === 'string' && password.length > 0) {
     if (password.length < 8) throw new HttpError(400, '密码至少 8 位');
     rest.password_hash = await hashPassword(password);
+  }
+  const memberId = (rest.member_id as string | undefined) ?? opts.existingMemberId;
+  if (memberId) {
+    const member = unwrap(
+      await db.from('members').select('email').eq('id', memberId).single<{ email: string | null }>(),
+    );
+    if (!member.email) throw new HttpError(400, '该成员尚未填写邮箱，请先在成员资料中补上邮箱');
+    rest.email = member.email;
   }
   return rest;
 }

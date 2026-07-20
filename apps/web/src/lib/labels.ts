@@ -36,6 +36,8 @@ export function memberRoleZh(m: {
 /** Full display order for the seven ranks, for filter chips + charts. */
 export const ROLE_ORDER = [
   '牧师',
+  '执事',
+  '同工',
   '小组长',
   '副组长',
   '实习组长',
@@ -67,6 +69,8 @@ export const GROUP_POSITION_OPTIONS: GroupPosition[] = [
  */
 export const ROLE_TAG: Record<string, { bg: string; fg: string; dot: string }> = {
   牧师: { bg: '#fbe3e0', fg: '#b3261e', dot: '#d1362b' },
+  执事: { bg: '#fde2ef', fg: '#a3266d', dot: '#c93b8d' },
+  同工: { bg: '#dcf3ee', fg: '#157866', dot: '#22a087' },
   小组长: { bg: '#fce7d4', fg: '#b5650f', dot: '#e0862b' },
   副组长: { bg: '#faf0c6', fg: '#8a6a0d', dot: '#d4a715' },
   实习组长: { bg: '#d7f0df', fg: '#1f7a44', dot: '#2f9e5b' },

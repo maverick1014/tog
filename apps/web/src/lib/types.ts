@@ -194,6 +194,7 @@ export interface AccountRow {
   member?: {
     id: string;
     full_name: string;
+    email: string | null;
     church_role: ChurchRole;
     group_position: GroupPosition | null;
   };

@@ -15,12 +15,7 @@ import {
   roleDot,
   roleTagStyle,
 } from '@/lib/labels';
-import {
-  AttendanceStatus,
-  canPromoteToLeadership,
-  GroupPosition,
-  LEADERSHIP_POSITIONS,
-} from '@tog/shared';
+import { AttendanceStatus, GroupPosition, LEADERSHIP_POSITIONS } from '@tog/shared';
 
 export default function GroupsPage() {
   const toast = useToast();
@@ -277,7 +272,7 @@ function GroupPanel({
           </div>
 
           <div className="hint" style={{ margin: '12px 0 14px' }}>
-            💡 身份在右侧「组员分配」逐人设定。<strong>小组长 / 副组长 / 实习组长每组各一人</strong>，且须先晋升为<strong>核心成员</strong>方可担任。
+            💡 身份在右侧「组员分配」逐人设定。指派新的领袖会自动将原领袖降为核心成员。
           </div>
           {perms.write && (
             <div className="flex gap-8">
@@ -323,16 +318,9 @@ function GroupPanel({
                           style={{ minWidth: 120 }}
                           disabled={!perms.write}
                         >
-                          {POSITION_OPTIONS.map((p) => {
-                            const isLeadership = LEADERSHIP_POSITIONS.includes(p);
-                            // Rule 3: leadership only for those already core-or-above.
-                            const disabled = isLeadership && !canPromoteToLeadership(cur);
-                            return (
-                              <option key={p} value={p} disabled={disabled && p !== cur}>
-                                {positionZh(p)}
-                              </option>
-                            );
-                          })}
+                          {POSITION_OPTIONS.map((p) => (
+                            <option key={p} value={p}>{positionZh(p)}</option>
+                          ))}
                         </select>
                       </td>
                       <td style={{ textAlign: 'right' }}>

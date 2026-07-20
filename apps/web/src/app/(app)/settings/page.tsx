@@ -215,10 +215,11 @@ function AccountDetail({
   onDeleted: () => void;
 }) {
   const router = useRouter();
-  const [email, setEmail] = useState(account.email);
+  // Login email always follows the linked member's own profile — never
+  // independently editable — so the two can never drift apart.
+  const email = account.member?.email ?? account.email;
   const [role, setRole] = useState<AccountRole>(account.account_role);
   const [status, setStatus] = useState<AccountStatus>(account.status);
-  const [twoFactor, setTwoFactor] = useState(account.two_factor);
   const [language, setLanguage] = useState(account.language);
   const [nDisc, setNDisc] = useState(account.notify_discipleship);
   const [nWeekly, setNWeekly] = useState(account.notify_weekly);
@@ -270,10 +271,8 @@ function AccountDetail({
     setErr(null);
     try {
       await api.patch(`/accounts/${account.id}`, {
-        email,
         account_role: role,
         status,
-        two_factor: twoFactor,
         language,
         notify_discipleship: nDisc,
         notify_weekly: nWeekly,
@@ -310,8 +309,8 @@ function AccountDetail({
         </div>
 
         <div className="grid g2" style={{ marginTop: 18 }}>
-          <Field label="登录邮箱">
-            <input value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Field label="登录邮箱（来自成员资料）">
+            <input value={email} readOnly disabled style={{ color: 'var(--muted)' }} />
           </Field>
           <Field label="权限角色">
             <select value={role} onChange={(e) => setRole(e.target.value as AccountRole)}>
@@ -347,13 +346,6 @@ function AccountDetail({
           <button className="btn ghost block" onClick={resetPassword} disabled={pwBusy || pw.length < 8}>
             {pwBusy ? '重设中…' : '重设该账户密码'}
           </button>
-          <div className="flex-between" style={{ paddingTop: 12, borderTop: '1px solid var(--border)', marginTop: 12 }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>两步验证（2FA）</div>
-              <div className="muted" style={{ fontSize: 11.5 }}>登录时需短信验证码（规划中）</div>
-            </div>
-            <Switch on={twoFactor} onToggle={() => setTwoFactor(!twoFactor)} />
-          </div>
         </div>
 
         <div className="card">
@@ -369,17 +361,8 @@ function AccountDetail({
         </div>
       </div>
 
-      <div className="card mt-16">
-        <h3 style={{ marginBottom: 6 }}>通知</h3>
-        <NotifyRow title="门训进度更新" sub="带领者提交每日守望时通知" on={nDisc} set={setNDisc} />
-        <div className="flex-between" style={{ padding: '11px 0' }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>每周概览邮件</div>
-            <div className="muted" style={{ fontSize: 11.5 }}>每周一早晨发送牧养摘要</div>
-          </div>
-          <Switch on={nWeekly} onToggle={() => setNWeekly(!nWeekly)} />
-        </div>
-      </div>
+      {/* 通知 (notifications) hidden until email/push delivery is actually
+          implemented — the toggles didn't send anything, just stored a flag. */}
 
       <div
         className="flex-between flex-wrap mt-16"
@@ -419,15 +402,23 @@ function AddAccountModal({
 }) {
   const takenMembers = new Set(existing.map((a) => a.member_id));
   const [memberId, setMemberId] = useState('');
-  const [email, setEmail] = useState('');
   const [role, setRole] = useState<AccountRole>(AccountRole.Coworker);
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const selectedMember = members.find((m) => m.id === memberId) ?? null;
+  // The login email always follows the member's own profile — never a
+  // separately typed value — so the two can never drift apart.
+  const email = selectedMember?.email ?? '';
+
   const save = async () => {
-    if (!memberId || !email.trim()) {
-      setErr('请选择成员并填写登录邮箱');
+    if (!memberId) {
+      setErr('请选择成员');
+      return;
+    }
+    if (!email) {
+      setErr('该成员尚未填写邮箱，请先在成员资料中补上邮箱');
       return;
     }
     if (password.length < 8) {
@@ -439,7 +430,7 @@ function AddAccountModal({
     try {
       await api.post('/accounts', {
         member_id: memberId,
-        email: email.trim(),
+        email,
         account_role: role,
         password,
       });
@@ -455,7 +446,7 @@ function AddAccountModal({
     <Modal title="新建账户" onClose={onClose}>
       {err && <ErrorBanner message={err} />}
       <p className="muted" style={{ margin: '0 0 14px', fontSize: 12.5, lineHeight: 1.6 }}>
-        登录账户必须<strong style={{ color: 'var(--ink)' }}>关联一位成员</strong>。先选择成员，再设定登录邮箱与权限角色。
+        登录账户必须<strong style={{ color: 'var(--ink)' }}>关联一位成员</strong>，登录邮箱直接沿用该成员资料里的邮箱。
       </p>
       <Field label="关联成员（已有账户者不显示）">
         <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
@@ -468,8 +459,8 @@ function AddAccountModal({
         </select>
       </Field>
       <div className="form-row">
-        <Field label="登录邮箱">
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@grace.org" />
+        <Field label="登录邮箱（来自成员资料）">
+          <input value={email} readOnly disabled placeholder="该成员尚未填写邮箱" style={{ color: 'var(--muted)' }} />
         </Field>
         <Field label="权限角色">
           <select value={role} onChange={(e) => setRole(e.target.value as AccountRole)}>
@@ -479,12 +470,17 @@ function AddAccountModal({
           </select>
         </Field>
       </div>
+      {memberId && !email && (
+        <div className="hint" style={{ marginBottom: 14 }}>
+          ⚠️ 该成员尚未填写邮箱，请先到「成员目录」为其补上邮箱，再回来建立登录账户。
+        </div>
+      )}
       <Field label="初始密码">
         <PasswordInput value={password} onChange={setPassword} placeholder="至少 8 位，可稍后由用户自行修改" autoComplete="new-password" />
       </Field>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
-        <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '创建账户'}</button>
+        <button className="btn" onClick={save} disabled={saving || !memberId || !email}>{saving ? '保存中…' : '创建账户'}</button>
       </div>
     </Modal>
   );
