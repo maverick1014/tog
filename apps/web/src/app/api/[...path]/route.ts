@@ -386,8 +386,38 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
           if (q.get('program_id')) query = query.eq('program_id', q.get('program_id'));
           return json(unwrap(await query));
         }
-        if (method === 'POST')
-          return json(unwrap(await db.from('discipleship_pairs').insert(await body()).select(PAIR_SELECT).single()));
+        if (method === 'POST') {
+          // `backfill_days` lets a pair be created already partway through the
+          // program — e.g. a mentor/trainee who were tracking progress on
+          // paper before this system existed — by marking days 1..N complete
+          // immediately instead of starting the pair at 0%.
+          const { backfill_days, ...pairDto } = (await body()) as Record<string, unknown>;
+          const pair = unwrap<{ id: string; program_id: string }>(
+            await db.from('discipleship_pairs').insert(pairDto).select(PAIR_SELECT).single(),
+          );
+          const n = Math.trunc(Number(backfill_days) || 0);
+          if (n > 0) {
+            const program = unwrap(
+              await db
+                .from('discipleship_programs')
+                .select('total_days')
+                .eq('id', pair.program_id)
+                .single<{ total_days: number }>(),
+            );
+            const days = Math.min(n, program.total_days);
+            unwrap(
+              await db.from('discipleship_progress').upsert(
+                Array.from({ length: days }, (_, i) => ({
+                  pair_id: pair.id,
+                  day_number: i + 1,
+                  completed: true,
+                })),
+                { onConflict: 'pair_id,day_number' },
+              ),
+            );
+          }
+          return json(pair);
+        }
       } else if (r3 === 'progress' && method === 'POST') {
         return json(await upsertProgress(db, r2, await body()));
       } else if (!r3) {

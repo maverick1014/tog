@@ -78,12 +78,13 @@ export function PairProgressModal({
             <span className="pct">{pct}%</span>
           </div>
           <div className="muted" style={{ fontSize: 13, margin: '16px 0 8px' }}>
-            40 天守望格 · 已完成 {done} / {total} 天 ·{' '}
+            40 天守望格 · 已完成 {done} / {total} 天 · ★ 表示当天有留言 ·{' '}
             <span style={{ color: 'var(--brand)' }}>点日格看当天记录</span>
           </div>
           <div className="day-grid">
             {Array.from({ length: total }, (_, i) => {
               const dnum = i + 1;
+              const hasNote = !!progressByDay.get(dnum)?.notes;
               return (
                 <div
                   key={i}
@@ -91,9 +92,10 @@ export function PairProgressModal({
                     selDay === dnum ? 'sel' : ''
                   }`}
                   onClick={() => setSelDay(dnum)}
-                  title={`第 ${dnum} 天`}
+                  title={hasNote ? `第 ${dnum} 天 · 有留言` : `第 ${dnum} 天`}
                 >
                   {dnum}
+                  {hasNote && <span className="note-star">★</span>}
                 </div>
               );
             })}

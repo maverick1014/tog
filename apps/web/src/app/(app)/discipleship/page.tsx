@@ -365,6 +365,7 @@ export default function DiscipleshipPage() {
       {addOpen && programId && (
         <AddPairModal
           programId={programId}
+          totalDays={programs.data?.[0]?.total_days ?? 40}
           members={members.data ?? []}
           existing={pairs.data ?? []}
           onClose={() => setAddOpen(false)}
@@ -541,12 +542,14 @@ function DiscList({
 
 function AddPairModal({
   programId,
+  totalDays,
   members,
   existing,
   onClose,
   onSaved,
 }: {
   programId: string;
+  totalDays: number;
   members: MemberRow[];
   existing: PairRow[];
   onClose: () => void;
@@ -554,6 +557,7 @@ function AddPairModal({
 }) {
   const [mentorId, setMentorId] = useState('');
   const [traineeId, setTraineeId] = useState('');
+  const [backfillDays, setBackfillDays] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -578,6 +582,7 @@ function AddPairModal({
         mentor_id: mentorId,
         trainee_id: traineeId,
         parent_pair_id: parent?.id,
+        backfill_days: backfillDays ? Number(backfillDays) : undefined,
       });
       onSaved();
     } catch (e) {
@@ -612,7 +617,21 @@ function AddPairModal({
             ))}
         </select>
       </Field>
-      <div className="hint" style={{ marginBottom: 6 }}>🕊 新配对从第 1 天开始（进度 0 / 40）。开始填写后即出现在接棒图中。</div>
+      <Field label={`已完成天数（选填 — 若线下已守望至第几天，直接从该天承接进度，最多 ${totalDays} 天）`}>
+        <input
+          type="number"
+          min={0}
+          max={totalDays}
+          value={backfillDays}
+          onChange={(e) => setBackfillDays(e.target.value)}
+          placeholder="0"
+        />
+      </Field>
+      <div className="hint" style={{ marginBottom: 6 }}>
+        {backfillDays && Number(backfillDays) > 0
+          ? `🕊 新配对建立时会将第 1 至第 ${Math.min(Number(backfillDays), totalDays)} 天标记为已完成，之后从第 ${Math.min(Number(backfillDays), totalDays) + 1} 天继续填写。`
+          : `🕊 新配对从第 1 天开始（进度 0 / ${totalDays}）。开始填写后即出现在接棒图中。`}
+      </div>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
         <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '建立配对'}</button>

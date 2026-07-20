@@ -769,6 +769,7 @@ textarea {
   gap: 6px;
 }
 .day-cell {
+  position: relative;
   aspect-ratio: 1;
   border-radius: 6px;
   display: grid;
@@ -780,6 +781,18 @@ textarea {
   color: var(--faint);
   user-select: none;
   font-variant-numeric: tabular-nums;
+}
+/* Marks a day that has a mentor remark — visible at a glance without opening it. */
+.day-cell .note-star {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--accent);
+}
+.day-cell.done .note-star {
+  color: #fff;
 }
 .day-cell.done {
   background: var(--brand);
