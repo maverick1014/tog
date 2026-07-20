@@ -302,7 +302,7 @@ function EventModal({
         </Field>
       </div>
       <Field label="开始时间">
-        <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
+        <input type="datetime-local" className={form.starts_at ? undefined : 'date-empty'} value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
       </Field>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>

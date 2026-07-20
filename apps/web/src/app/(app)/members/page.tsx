@@ -322,6 +322,7 @@ function AddMemberModal({
         <Field label="加入日期">
           <input
             type="date"
+            className={form.joined_at ? undefined : 'date-empty'}
             value={form.joined_at}
             onChange={(e) => setForm({ ...form, joined_at: e.target.value })}
           />

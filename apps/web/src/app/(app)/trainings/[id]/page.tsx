@@ -398,7 +398,7 @@ function SessionModal({
       </div>
       <div className="form-row">
         <Field label="时间">
-          <input type="datetime-local" value={form.scheduled_at} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} />
+          <input type="datetime-local" className={form.scheduled_at ? undefined : 'date-empty'} value={form.scheduled_at} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} />
         </Field>
         <Field label="地点">
           <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="副堂" />
