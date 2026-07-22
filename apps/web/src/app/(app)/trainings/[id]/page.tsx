@@ -269,18 +269,22 @@ export default function TrainingDetailPage() {
                   </div>
                   <span className="faint tnum" style={{ fontSize: 11, minWidth: 26 }}>{att.attended}/{att.total}</span>
                 </div>
-                <span className={`badge ${enrollmentStatusClass(e.status)}`} style={{ flexShrink: 0 }}>
-                  {ENROLLMENT_STATUS_LABELS[e.status] ?? e.status}
-                </span>
-                {perms.write && e.status === EnrollmentStatus.Pending && (
-                  <button className="btn good sm" style={{ flexShrink: 0 }} onClick={() => approve(e.id)}>通过</button>
-                )}
-                {perms.delete && e.status === EnrollmentStatus.Pending && (
-                  <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, true)}>拒绝</button>
-                )}
-                {perms.delete && e.status !== EnrollmentStatus.Pending && (
-                  <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, false)}>移除</button>
-                )}
+                {/* Fixed-width, right-aligned so the bar to its left always lands
+                    in the same spot regardless of which buttons this row shows. */}
+                <div className="flex items-center gap-6" style={{ width: 172, flexShrink: 0, justifyContent: 'flex-end' }}>
+                  <span className={`badge ${enrollmentStatusClass(e.status)}`} style={{ flexShrink: 0 }}>
+                    {ENROLLMENT_STATUS_LABELS[e.status] ?? e.status}
+                  </span>
+                  {perms.write && e.status === EnrollmentStatus.Pending && (
+                    <button className="btn good sm" style={{ flexShrink: 0 }} onClick={() => approve(e.id)}>通过</button>
+                  )}
+                  {perms.delete && e.status === EnrollmentStatus.Pending && (
+                    <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, true)}>拒绝</button>
+                  )}
+                  {perms.delete && e.status !== EnrollmentStatus.Pending && (
+                    <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, false)}>移除</button>
+                  )}
+                </div>
               </div>
               );
             })}

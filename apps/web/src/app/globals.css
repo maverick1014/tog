@@ -441,8 +441,14 @@ td {
   vertical-align: middle;
 }
 /* A lone trailing chevron/icon-button column (the "open detail" affordance)
-   should hug the row's right edge instead of carrying full text-cell padding. */
+   should hug the row's right edge instead of carrying full text-cell padding.
+   `width: 1%` shrinks it to its content so the leftover table width always
+   goes to the text columns — otherwise a table with fewer columns lets this
+   column soak up extra space and the chevron drifts left of the edge (so the
+   button lands at a DIFFERENT x on the members vs. groups tables). */
 td:has(> .icon-btn:only-child) {
+  width: 1%;
+  white-space: nowrap;
   padding-right: 8px;
 }
 /* The last row's own border would otherwise sit right against the card's
