@@ -440,6 +440,16 @@ td {
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
+/* A lone trailing chevron/icon-button column (the "open detail" affordance)
+   should hug the row's right edge instead of carrying full text-cell padding. */
+td:has(> .icon-btn:only-child) {
+  padding-right: 8px;
+}
+/* The last row's own border would otherwise sit right against the card's
+   border below it, reading as a doubled line. */
+tbody tr:last-child td {
+  border-bottom: none;
+}
 .tnum {
   font-variant-numeric: tabular-nums;
 }

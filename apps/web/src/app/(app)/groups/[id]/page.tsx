@@ -6,12 +6,20 @@ import { useFetch } from '@/lib/hooks';
 import { useSortableRows } from '@/lib/sort';
 import { api } from '@/lib/api';
 import { usePageChrome, useMe } from '@/components/AppShell';
-import { ErrorBanner, Field, Loading, SortTh, useConfirm, useToast } from '@/components/ui';
+import { ErrorBanner, Field, Loading, RoleBadge, SortTh, useConfirm, useToast } from '@/components/ui';
 import { can } from '@/lib/perms';
 import { exportMatrix } from '@/lib/export';
 import { GroupAttendanceResponse, GroupDetail, MemberRow } from '@/lib/types';
-import { ATTENDANCE_LABELS, roleDot, roleTagStyle, positionZh } from '@/lib/labels';
-import { AttendanceStatus, GroupPosition, LEADERSHIP_POSITIONS } from '@tog/shared';
+import {
+  ATTENDANCE_LABELS,
+  GROUP_POSITION_OPTIONS,
+  roleDot,
+  roleTagStyle,
+  positionZh,
+  WEEKDAY_LABELS,
+  WEEKDAY_OPTIONS,
+} from '@/lib/labels';
+import { AttendanceStatus, GroupPosition, LEADERSHIP_POSITIONS, Weekday } from '@tog/shared';
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -69,6 +77,9 @@ function GroupPanel({
   const perms = can(useMe().role);
   const [name, setName] = useState(group.name);
   const [desc, setDesc] = useState(group.description ?? '');
+  const [meetingDay, setMeetingDay] = useState<Weekday | ''>(group.meeting_day ?? '');
+  const [meetingTime, setMeetingTime] = useState(group.meeting_time?.slice(0, 5) ?? '');
+  const [location, setLocation] = useState(group.location ?? '');
   const [addSel, setAddSel] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -84,14 +95,29 @@ function GroupPanel({
     [allMembers, group.id],
   );
 
+  // "大到小" — leadership ranks first, matching GROUP_POSITION_OPTIONS' own
+  // promotion order (leader ... new member).
+  const positionRank = (pos: GroupPosition | null) =>
+    (GROUP_POSITION_OPTIONS as readonly GroupPosition[]).indexOf(pos ?? GroupPosition.NewMember);
+
   const { sorted: sortedGroupMembers, sortKey: memberSortKey, sortDir: memberSortDir, toggleSort: toggleMemberSort } =
-    useSortableRows(groupMembers, (m) => m.full_name, { key: 'name', dir: 'asc' });
+    useSortableRows(
+      groupMembers,
+      (m, key) => (key === 'name' ? m.full_name : positionRank(m.group_position)),
+      { key: 'position', dir: 'asc' },
+    );
 
   const saveGroup = async () => {
     setBusy(true);
     setErr(null);
     try {
-      await api.patch(`/groups/${group.id}`, { name, description: desc });
+      await api.patch(`/groups/${group.id}`, {
+        name,
+        description: desc || null,
+        meeting_day: meetingDay || null,
+        meeting_time: meetingTime || null,
+        location: location || null,
+      });
       toast('已保存设定');
       onChanged();
     } catch (e) {
@@ -212,8 +238,24 @@ function GroupPanel({
           <Field label="小组名称">
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <Field label="简介 / 聚会时间">
+          <Field label="简介">
             <input value={desc} onChange={(e) => setDesc(e.target.value)} />
+          </Field>
+          <div className="form-row">
+            <Field label="聚会日">
+              <select value={meetingDay} onChange={(e) => setMeetingDay(e.target.value as Weekday | '')}>
+                <option value="">未定</option>
+                {WEEKDAY_OPTIONS.map((d) => (
+                  <option key={d} value={d}>{WEEKDAY_LABELS[d]}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="聚会时间">
+              <input type="time" className={meetingTime ? undefined : 'date-empty'} value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
+            </Field>
+          </div>
+          <Field label="地点">
+            <input value={location} onChange={(e) => setLocation(e.target.value)} />
           </Field>
 
           <div className="flex-between" style={{ margin: '16px 0 4px' }}>
@@ -266,6 +308,7 @@ function GroupPanel({
               <thead>
                 <tr>
                   <SortTh sortKey="name" activeKey={memberSortKey} dir={memberSortDir} onSort={toggleMemberSort}>姓名</SortTh>
+                  <SortTh sortKey="position" activeKey={memberSortKey} dir={memberSortDir} onSort={toggleMemberSort}>身份</SortTh>
                   <th />
                 </tr>
               </thead>
@@ -274,6 +317,9 @@ function GroupPanel({
                   <tr key={m.id}>
                     <td>
                       <strong>{m.full_name}</strong>
+                    </td>
+                    <td>
+                      <RoleBadge role={positionZh(m.group_position)} />
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {perms.write && (
@@ -284,16 +330,13 @@ function GroupPanel({
                 ))}
                 {sortedGroupMembers.length === 0 && (
                   <tr>
-                    <td colSpan={2} className="faint" style={{ textAlign: 'center', padding: 24 }}>
+                    <td colSpan={3} className="faint" style={{ textAlign: 'center', padding: 24 }}>
                       本组暂无成员，从上方选择加入。
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-          </div>
-          <div className="hint mt-14">
-            💡 新加入的组员默认为「新成员」身份，其余身份调整请到该成员的个人档案页设定。
           </div>
         </div>
       </div>

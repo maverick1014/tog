@@ -11,6 +11,7 @@ import {
   GroupPosition,
   MemberStatus,
   PairStatus,
+  Weekday,
   displayRoleZh,
 } from '@tog/shared';
 
@@ -74,6 +75,46 @@ export const GROUP_POSITION_OPTIONS: GroupPosition[] = [
   GroupPosition.RegularMember,
   GroupPosition.NewMember,
 ];
+
+/* -------------------------------------------------------------------------
+ * Groups — meeting schedule
+ * ---------------------------------------------------------------------- */
+
+export const WEEKDAY_LABELS: Record<Weekday, string> = {
+  [Weekday.Sunday]: '周日',
+  [Weekday.Monday]: '周一',
+  [Weekday.Tuesday]: '周二',
+  [Weekday.Wednesday]: '周三',
+  [Weekday.Thursday]: '周四',
+  [Weekday.Friday]: '周五',
+  [Weekday.Saturday]: '周六',
+};
+
+export const WEEKDAY_OPTIONS: Weekday[] = [
+  Weekday.Sunday,
+  Weekday.Monday,
+  Weekday.Tuesday,
+  Weekday.Wednesday,
+  Weekday.Thursday,
+  Weekday.Friday,
+  Weekday.Saturday,
+];
+
+export function weekdayZh(day: Weekday | string | null): string {
+  if (!day) return '';
+  return WEEKDAY_LABELS[day as Weekday] ?? String(day);
+}
+
+/** Postgres `time` comes back as "HH:MM:SS" — trim to "HH:MM" for display. */
+export function formatMeetingTime(time: string | null): string {
+  return time ? time.slice(0, 5) : '';
+}
+
+/** Combined "周二 20:00 · Emily家" summary for lists — blank pieces are skipped. */
+export function meetingScheduleZh(g: { meeting_day: Weekday | string | null; meeting_time: string | null; location: string | null }): string {
+  const dayTime = [weekdayZh(g.meeting_day), formatMeetingTime(g.meeting_time)].filter(Boolean).join(' ');
+  return [dayTime, g.location].filter(Boolean).join(' · ');
+}
 
 /**
  * Per-role tag palette — matches the Claude Design `roleTags` exactly. Each

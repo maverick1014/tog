@@ -113,10 +113,23 @@ export interface Member {
 // Groups (小组) & households
 // ---------------------------------------------------------------------------
 
+export enum Weekday {
+  Sunday = 'sunday',
+  Monday = 'monday',
+  Tuesday = 'tuesday',
+  Wednesday = 'wednesday',
+  Thursday = 'thursday',
+  Friday = 'friday',
+  Saturday = 'saturday',
+}
+
 export interface Group {
   id: string;
   name: string;
   description: string | null;
+  meeting_day: Weekday | null;
+  meeting_time: string | null; // "HH:MM:SS" (Postgres `time`)
+  location: string | null;
   created_at: string;
   // Leadership is derived from members.group_position, not stored here.
 }
