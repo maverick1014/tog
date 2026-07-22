@@ -38,6 +38,27 @@ export default function MemberDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [popupPair, setPopupPair] = useState<string | null>(null);
 
+  // Hooks must run unconditionally on every render (rules of hooks) — this
+  // has to sit above the loading/error early-returns below, not after them.
+  const records = record.data ?? [];
+  const { sorted: sortedRecords, sortKey: recSortKey, sortDir: recSortDir, toggleSort: toggleRecSort } =
+    useSortableRows(
+      records,
+      (t, key) => {
+        switch (key) {
+          case 'category':
+            return t.training?.category ?? undefined;
+          case 'status':
+            return ENROLLMENT_STATUS_LABELS[t.status] ?? t.status;
+          case 'completed':
+            return t.completed_at ?? undefined;
+          default:
+            return t.training?.name;
+        }
+      },
+      { key: 'course', dir: 'asc' },
+    );
+
   usePageChrome({ title: '成员详情', subtitle: '档案 · 个人培训记录 · 四十天守望' }, [id]);
 
   const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,24 +84,6 @@ export default function MemberDetailPage() {
 
   const m = member.data;
   const role = memberRoleZh(m);
-  const records = record.data ?? [];
-  const { sorted: sortedRecords, sortKey: recSortKey, sortDir: recSortDir, toggleSort: toggleRecSort } =
-    useSortableRows(
-      records,
-      (t, key) => {
-        switch (key) {
-          case 'category':
-            return t.training?.category ?? undefined;
-          case 'status':
-            return ENROLLMENT_STATUS_LABELS[t.status] ?? t.status;
-          case 'completed':
-            return t.completed_at ?? undefined;
-          default:
-            return t.training?.name;
-        }
-      },
-      { key: 'course', dir: 'asc' },
-    );
   const pairs = (allPairs.data ?? []).filter(
     (p) => p.mentor_id === m.id || p.trainee_id === m.id,
   );

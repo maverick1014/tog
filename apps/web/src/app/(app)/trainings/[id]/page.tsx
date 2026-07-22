@@ -36,6 +36,16 @@ export default function TrainingDetailPage() {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editSession, setEditSession] = useState<SessionRow | null>(null);
 
+  // Hooks must run unconditionally on every render (rules of hooks) — this
+  // has to sit above the loading/error early-returns below, not after them.
+  const nl = namelist.data;
+  const { sorted: sortedNamelist, sortKey: nlSortKey, sortDir: nlSortDir, toggleSort: toggleNlSort } =
+    useSortableRows(
+      nl?.rows ?? [],
+      (r, key) => (key === 'role' ? memberRoleZh(r.member) : r.member.full_name),
+      { key: 'name', dir: 'asc' },
+    );
+
   usePageChrome({ title: '培训详情', subtitle: '场次 · 报名审核 · 核对名单' }, [id]);
 
   if (detail.initialLoading) return <Loading />;
@@ -120,15 +130,6 @@ export default function TrainingDetailPage() {
     await api.delete(`/trainings/${id}`);
     router.push('/trainings');
   };
-
-  const nl = namelist.data;
-
-  const { sorted: sortedNamelist, sortKey: nlSortKey, sortDir: nlSortDir, toggleSort: toggleNlSort } =
-    useSortableRows(
-      nl?.rows ?? [],
-      (r, key) => (key === 'role' ? memberRoleZh(r.member) : r.member.full_name),
-      { key: 'name', dir: 'asc' },
-    );
 
   const exportNamelist = () => {
     if (!nl) return;
