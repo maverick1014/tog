@@ -666,6 +666,19 @@ input:not([type='checkbox']):not([type='radio']),
 select {
   height: var(--control-h);
 }
+/* Small variant — same token family as .btn.sm, for controls placed in a
+   compact context (e.g. a picker inside a small card) rather than a form row. */
+input.sm:not([type='checkbox']):not([type='radio']),
+select.sm {
+  height: var(--control-h-sm);
+  padding: 0 9px;
+  font-size: 12px;
+}
+select.sm {
+  padding-right: 28px;
+  background-size: 10px 10px;
+  background-position: right 9px center;
+}
 /* Normalize the select: drop the native chevron and draw our own with aligned
    right padding, so the arrow sits consistently across browsers/devices. */
 select {
