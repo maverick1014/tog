@@ -9,6 +9,7 @@ import {
   GroupPosition,
   MemberStatus,
   PairStatus,
+  Weekday,
 } from '@tog/shared';
 
 /** A member row as returned by the API (joins group + household names). */
@@ -36,6 +37,9 @@ export interface GroupRow {
   id: string;
   name: string;
   description: string | null;
+  meeting_day: Weekday | null;
+  meeting_time: string | null;
+  location: string | null;
 }
 
 export interface GroupDetail extends GroupRow {
