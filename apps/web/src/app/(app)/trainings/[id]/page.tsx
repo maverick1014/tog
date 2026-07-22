@@ -200,7 +200,6 @@ export default function TrainingDetailPage() {
               <button className="btn ghost" onClick={copyEnrollLink} title="复制可发给成员的自助报名链接">🔗 报名链接</button>
             )}
             {perms.write && <button className="btn ghost" onClick={() => setEditOpen(true)}>编辑课程</button>}
-            {perms.delete && <button className="btn ghost" style={{ color: 'var(--crit)' }} onClick={del}>删除</button>}
           </div>
         </div>
       </div>
@@ -365,6 +364,7 @@ export default function TrainingDetailPage() {
             detail.reload();
             toast('已更新课程');
           }}
+          onDelete={perms.delete ? del : undefined}
         />
       )}
       {(sessionOpen || editSession) && (
