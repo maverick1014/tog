@@ -146,12 +146,23 @@ async function main() {
     check('搜索框实时过滤列表', total > 0 && (await page.locator('.mtile').count()) < total, `${total} → 过滤`);
     await page.fill('input[placeholder*="搜索"]', '');
     await w(300);
-    await page.locator('.chip', { hasText: '牧师' }).first().click();
+    // 身份 + 小组 are now <select> filters (previously .chip buttons). The first
+    // select is 身份: pick 牧师 and assert it narrows the list.
+    await page.locator('select').first().selectOption('牧师');
     await w(500);
-    check('身份 chip 筛选生效', (await page.locator('.mtile').count()) < total);
+    check('身份筛选生效', (await page.locator('.mtile').count()) < total);
     check('导出按钮存在', (await page.locator('button:has-text("导出")').count()) > 0);
-    await page.locator('.chip', { hasText: '全部' }).first().click();
+    await page.locator('select').first().selectOption('all');
     await w(300);
+    // 小组 filter = second select; drive its first real group option (index 1).
+    const groupVal = await page.locator('select').nth(1).locator('option').nth(1).getAttribute('value');
+    if (groupVal) {
+      await page.locator('select').nth(1).selectOption(groupVal);
+      await w(400);
+      check('小组筛选生效', (await page.locator('.mtile').count()) <= total);
+      await page.locator('select').nth(1).selectOption('all');
+      await w(300);
+    }
     await shot('02-members');
 
     /* -- 成员详情 -------------------------------------------------------- */
@@ -170,9 +181,11 @@ async function main() {
     /* -- 小组管理 -------------------------------------------------------- */
     mod('小组管理 · 列表 · 详情 · 每周出席');
     await page.goto(`${BASE}/groups`, { waitUntil: 'domcontentloaded' });
-    await page.locator('table tbody tr').first().waitFor({ timeout: 20000 });
-    check('小组列表渲染', (await page.locator('table tbody tr').count()) > 0);
-    await page.locator('table tbody tr .icon-btn').first().click();
+    // Mobile viewport → the groups list renders as .mtile tiles (the desktop
+    // table is .only-desktop / hidden). Each tile navigates to its detail page.
+    await page.locator('.mtile').first().waitFor({ timeout: 20000 });
+    check('小组列表渲染', (await page.locator('.mtile').count()) > 0);
+    await page.locator('.mtile').first().click();
     await page.waitForURL(/\/groups\/[0-9a-f-]+/, { timeout: 15000 });
     await page.locator('text=铁三角').first().waitFor({ timeout: 15000 });
     check('小组详情显示铁三角带领团队', true);
@@ -237,7 +250,8 @@ async function main() {
     const settingsBody = await page.locator('body').innerText();
     check('已进入用户管理(非登录页)', settingsBody.includes('权限说明'));
     check('权限说明已无「奉献」残留文案', !settingsBody.includes('奉献'));
-    await page.locator('tr.row-click').first().click();
+    // Account rows now expose a › icon-btn (previously the whole tr.row-click).
+    await page.locator('table.stack .icon-btn').first().click();
     await page.locator('button:has-text("保存账户设置")').waitFor({ timeout: 10000 });
     check('账户详情可进入', true);
     await shot('08-settings');
