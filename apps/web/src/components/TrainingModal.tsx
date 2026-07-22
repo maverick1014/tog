@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { ErrorBanner, Field, Modal } from '@/components/ui';
+import { ErrorBanner, Field, Modal, useToast } from '@/components/ui';
 import { MemberRow, TrainingRow } from '@/lib/types';
 import { TRAINING_CATEGORIES } from '@/lib/labels';
 
@@ -28,6 +28,7 @@ export function TrainingModal({
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const toast = useToast();
 
   const save = async () => {
     if (!form.name.trim()) {
@@ -52,6 +53,7 @@ export function TrainingModal({
       onSaved(t.id);
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

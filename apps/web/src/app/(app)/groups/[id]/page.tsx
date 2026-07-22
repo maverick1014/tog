@@ -43,7 +43,7 @@ export default function GroupDetailPage() {
   return (
     <>
       <button className="back-btn" onClick={() => router.push('/groups')}>
-        ← 返回小组列表
+        ‹ 返回小组列表
       </button>
 
       <GroupPanel
@@ -54,7 +54,6 @@ export default function GroupDetailPage() {
           toast('已删除小组');
           router.push('/groups');
         }}
-        toast={toast}
       />
     </>
   );
@@ -65,15 +64,14 @@ function GroupPanel({
   allMembers,
   onChanged,
   onDeleted,
-  toast,
 }: {
   group: GroupDetail;
   allMembers: MemberRow[];
   onChanged: () => void;
   onDeleted: () => void;
-  toast: (m: string) => void;
 }) {
   const confirm = useConfirm();
+  const toast = useToast();
   const perms = can(useMe().role);
   const [name, setName] = useState(group.name);
   const [desc, setDesc] = useState(group.description ?? '');
@@ -122,6 +120,7 @@ function GroupPanel({
       onChanged();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setBusy(false);
     }
@@ -140,6 +139,7 @@ function GroupPanel({
       onDeleted();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
@@ -151,9 +151,11 @@ function GroupPanel({
         group_position: GroupPosition.NewMember,
       });
       setAddSel('');
+      toast('已加入本组');
       onChanged();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
@@ -168,9 +170,11 @@ function GroupPanel({
     if (!ok) return;
     try {
       await api.patch(`/members/${memberId}`, { group_id: null, group_position: null });
+      toast('已移出本组');
       onChanged();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
@@ -187,9 +191,11 @@ function GroupPanel({
       if (memberId) {
         await api.patch(`/members/${memberId}`, { group_position: pos });
       }
+      toast('已更新带领团队');
       onChanged();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
@@ -436,7 +442,7 @@ function WeeklyAttendance({ groupId }: { groupId: string }) {
       });
       reload();
     } catch (e) {
-      toast((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 

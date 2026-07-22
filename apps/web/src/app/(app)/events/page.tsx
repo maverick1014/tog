@@ -56,7 +56,7 @@ export default function EventsPage() {
       events.reload();
       toast('已删除聚会');
     } catch (err) {
-      toast((err as Error).message);
+      toast((err as Error).message, 'error');
     }
   };
 
@@ -143,6 +143,7 @@ function AttendancePanel({
   onSaved: () => void;
 }) {
   const detail = useFetch<EventDetail>(`/events/${eventId}`);
+  const toast = useToast();
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -170,6 +171,7 @@ function AttendancePanel({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }
@@ -250,6 +252,7 @@ function EventModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState({
     title: event?.title ?? '',
     event_type: (event?.event_type ?? EventType.Service) as EventType,
@@ -278,6 +281,7 @@ function EventModal({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

@@ -3,7 +3,7 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ConfirmProvider, ToastProvider, useConfirm } from './ui';
+import { ConfirmProvider, ToastProvider, useConfirm, useToast } from './ui';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { BrandLogo } from './BrandLogo';
 import { initialOf } from '@/lib/labels';
@@ -185,6 +185,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function NavUser({ me }: { me: Me }) {
   const confirm = useConfirm();
+  const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
 
@@ -197,8 +198,12 @@ function NavUser({ me }: { me: Me }) {
       danger: true,
     });
     if (!ok) return;
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/login';
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
   };
 
   return (
@@ -217,7 +222,13 @@ function NavUser({ me }: { me: Me }) {
         </div>
       </div>
       {pwOpen && (
-        <ChangePasswordModal onClose={() => setPwOpen(false)} onSaved={() => setPwOpen(false)} />
+        <ChangePasswordModal
+          onClose={() => setPwOpen(false)}
+          onSaved={() => {
+            setPwOpen(false);
+            toast('密码已更新');
+          }}
+        />
       )}
     </div>
   );

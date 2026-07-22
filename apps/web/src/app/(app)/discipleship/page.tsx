@@ -73,7 +73,7 @@ export default function DiscipleshipPage() {
       overview.reload();
       toast('已删除配对');
     } catch (e) {
-      toast((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
@@ -572,6 +572,7 @@ function AddPairModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [mentorId, setMentorId] = useState('');
   const [traineeId, setTraineeId] = useState('');
   const [backfillDays, setBackfillDays] = useState('');
@@ -604,6 +605,7 @@ function AddPairModal({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

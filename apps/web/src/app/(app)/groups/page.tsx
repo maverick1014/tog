@@ -172,6 +172,7 @@ function AddGroupModal({
   onClose: () => void;
   onSaved: (id: string) => void;
 }) {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [meetingDay, setMeetingDay] = useState<Weekday | ''>('');
@@ -198,6 +199,7 @@ function AddGroupModal({
       onSaved(g.id);
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

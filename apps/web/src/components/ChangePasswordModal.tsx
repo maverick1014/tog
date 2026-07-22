@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { ErrorBanner, Field, Modal, PasswordInput } from './ui';
+import { ErrorBanner, Field, Modal, PasswordInput, useToast } from './ui';
 
 /** Self-service password change — any logged-in user; verifies the current password. */
 export function ChangePasswordModal({
@@ -12,6 +12,7 @@ export function ChangePasswordModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -28,6 +29,7 @@ export function ChangePasswordModal({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

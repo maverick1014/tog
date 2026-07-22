@@ -282,6 +282,7 @@ function AddMemberModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const allGroups = useFetch<GroupRow[]>('/groups');
   const [form, setForm] = useState({
     full_name: '',
@@ -328,6 +329,7 @@ function AddMemberModal({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

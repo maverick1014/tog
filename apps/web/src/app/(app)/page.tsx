@@ -11,7 +11,7 @@ import {
   eventBadgeClass,
   formatDateTime,
   memberRoleZh,
-  roleDot,
+  roleTagStyle,
   ROLE_ORDER,
 } from '@/lib/labels';
 import { MemberStatus } from '@tog/shared';
@@ -53,12 +53,17 @@ export default function DashboardPage() {
       if (counts[r] != null) counts[r]++;
     }
     const max = Math.max(1, ...Object.values(counts));
-    return ROLE_ORDER.map((r) => ({
-      label: r,
-      count: counts[r],
-      width: `${(counts[r] / max) * 100}%`,
-      color: roleDot(r),
-    }));
+    return ROLE_ORDER.map((r) => {
+      const style = roleTagStyle(r);
+      return {
+        label: r,
+        count: counts[r],
+        width: `${(counts[r] / max) * 100}%`,
+        // Soft tag palette (same as the role badges) instead of a saturated fill.
+        bg: style.background,
+        fg: style.color,
+      };
+    });
   }, [memberList]);
 
   const discFocus = useMemo(
@@ -112,9 +117,9 @@ export default function DashboardPage() {
             >
               <div style={{ fontSize: 12.5 }}>{r.label}</div>
               <div style={{ height: 22, borderRadius: 6, background: 'var(--surface-2)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 6, width: r.width, background: r.color }} />
+                <div style={{ height: '100%', borderRadius: 6, width: r.width, background: r.bg }} />
               </div>
-              <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }} className="tnum">
+              <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', color: r.count ? r.fg : 'var(--muted)' }} className="tnum">
                 {r.count}
               </div>
             </div>
