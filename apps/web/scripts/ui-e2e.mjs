@@ -168,16 +168,21 @@ async function main() {
     await shot('03-member-detail');
 
     /* -- 小组管理 -------------------------------------------------------- */
-    mod('小组管理 · 每周出席');
+    mod('小组管理 · 列表 · 详情 · 每周出席');
     await page.goto(`${BASE}/groups`, { waitUntil: 'domcontentloaded' });
-    await page.locator('table select').first().waitFor({ timeout: 20000 });
-    check('组员身份下拉存在', (await page.locator('table select').count()) > 0);
+    await page.locator('table tbody tr').first().waitFor({ timeout: 20000 });
+    check('小组列表渲染', (await page.locator('table tbody tr').count()) > 0);
+    await page.locator('table tbody tr .icon-btn').first().click();
+    await page.waitForURL(/\/groups\/[0-9a-f-]+/, { timeout: 15000 });
+    await page.locator('text=铁三角').first().waitFor({ timeout: 15000 });
+    check('小组详情显示铁三角带领团队', true);
+    check('铁三角领袖指派下拉存在', (await page.locator('select.sm').count()) > 0);
     check('年 / 月筛选下拉存在', (await page.locator('select').count()) >= 2);
     await page.locator('th:has-text("第")').first().waitFor({ timeout: 20000 });
     check('每周出席渲染固定周列', (await page.locator('th:has-text("第")').count()) > 0,
       `${await page.locator('th:has-text("第")').count()} 周`);
     check('每周出席有勾选框', (await page.locator('input[type=checkbox]').count()) > 0);
-    await shot('04-groups');
+    await shot('04-group-detail');
 
     /* -- 聚会与出席 ------------------------------------------------------ */
     mod('聚会与出席');

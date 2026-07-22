@@ -140,11 +140,11 @@ tog/
 - **Member detail** = profile + **personal training record** (5.5) + discipleship pairs they're in.
 - The 身份 shown is **derived** (see §3); it is not edited here.
 
-### 5.2 Groups (小组管理) — the identity-allocation hub
-- List groups (name, blurb, member count); **create / delete** groups.
-- **Allocate members** into / out of a group.
-- **Per-member position dropdown** (the six positions in §3.2) with rules 2 & 3 enforced.
-- A derived **带领团队 (leadership team)** summary showing who is 小组长/副组长/实习组长.
+### 5.2 Groups (小组管理) — listing + detail
+- `/groups` lists every group (leader name, group name, member count, blurb); click a row → `/groups/[id]`.
+- Detail page: **create / delete** the group, **allocate members** into / out of it.
+- **铁三角 (leadership team)**: pick who holds 小组长/副组长/实习组长 directly here (rules 2 & 3 enforced — one holder per slot, auto-demote the incumbent). This is the only identity assignment on this page.
+- The member list itself is a simple name + remove list — no per-member position dropdown; 核心成员/普通成员/新成员 are set on the member's own profile page instead.
 
 ### 5.3 Events & attendance (聚会与出席)
 - Event types: 主日崇拜 / 聚会 / 祷告会 / 团契 / 其他; fields: 标题、说明、地点、开始/结束时间.
@@ -208,7 +208,8 @@ Tables:
 | `/` | 仪表盘 Dashboard | KPIs (成员总数/在册/即将聚会/本月奉献/门训进行中), 身份分布图, 奉献趋势, upcoming events, discipleship progress |
 | `/members` | 成员目录 | filter chips by 身份(derived) + 小组, search, table, create |
 | `/members/[id]` | 成员详情 | profile + **个人培训档案** + 门训对子 |
-| `/groups` | 小组管理 | group tabs, create/delete, member allocation, per-member 身份 dropdown (rules), derived 带领团队 |
+| `/groups` | 小组管理 · 列表 | table of all groups (组长, 小组名称, 组员人数, 简介), sortable, click a row → detail |
+| `/groups/[id]` | 小组详情 | create/delete, member allocation (simple list), **铁三角** leader picker (the only identity assignment here) |
 | `/events` | 聚会与出席 | event cards + **点名** (出席/请假/缺席) |
 | `/donations` | 奉献管理 | fund summary tiles + records table + create |
 | `/trainings` | 培训课程 | catalog cards + create |
