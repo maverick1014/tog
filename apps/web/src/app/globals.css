@@ -440,9 +440,26 @@ td {
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
+/* Even-column list tables: `table-layout: fixed` makes columns with an explicit
+   width (the narrow utility columns — status/date/count, and the chevron) keep
+   that width, while the remaining content columns divide the leftover space
+   EQUALLY. Set widths on the header (thead) cells; the body follows. */
+.table-fixed {
+  table-layout: fixed;
+}
+.table-fixed td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* A lone trailing chevron/icon-button column (the "open detail" affordance)
-   should hug the row's right edge instead of carrying full text-cell padding. */
+   should hug the row's right edge instead of carrying full text-cell padding.
+   `width: 1%` shrinks it to its content so the leftover table width always
+   goes to the text columns — otherwise a table with fewer columns lets this
+   column soak up extra space and the chevron drifts left of the edge (so the
+   button lands at a DIFFERENT x on the members vs. groups tables). */
 td:has(> .icon-btn:only-child) {
+  width: 1%;
+  white-space: nowrap;
   padding-right: 8px;
 }
 /* The last row's own border would otherwise sit right against the card's

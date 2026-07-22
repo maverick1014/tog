@@ -170,16 +170,18 @@ export default function MembersPage() {
       {/* Desktop — table */}
       <div className="card only-desktop" style={{ padding: 6 }}>
         <div className="table-wrap">
-          <table>
+          <table className="table-fixed">
             <thead>
               <tr>
+                {/* 成员 / 身份 / 所属小组 / 联系方式 share the width equally; the
+                    utility columns (状态 / 加入日期) + chevron stay narrow. */}
                 <SortTh sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>成员</SortTh>
                 <SortTh sortKey="role" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>身份</SortTh>
                 <SortTh sortKey="group" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>所属小组</SortTh>
                 <SortTh sortKey="phone" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>联系方式</SortTh>
-                <SortTh sortKey="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>状态</SortTh>
-                <SortTh sortKey="joined" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>加入日期</SortTh>
-                <th />
+                <SortTh sortKey="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort} style={{ width: 96 }}>状态</SortTh>
+                <SortTh sortKey="joined" activeKey={sortKey} dir={sortDir} onSort={toggleSort} style={{ width: 116 }}>加入日期</SortTh>
+                <th style={{ width: 52 }} />
               </tr>
             </thead>
             <tbody>

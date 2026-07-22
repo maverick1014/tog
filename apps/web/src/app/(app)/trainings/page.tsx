@@ -19,6 +19,7 @@ export default function TrainingsPage() {
   const trainings = useFetch<TrainingRow[]>('/trainings');
   const members = useFetch<MemberRow[]>('/members');
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<TrainingRow | null>(null);
 
   usePageChrome(
     {
@@ -47,20 +48,22 @@ export default function TrainingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list]);
 
-  const del = async (t: TrainingRow) => {
+  const del = async (t: TrainingRow): Promise<boolean> => {
     const ok = await confirm({
       title: '删除课程',
       message: `删除「${t.name}」？报名与名单记录将一并移除。`,
       confirmText: '删除',
       danger: true,
     });
-    if (!ok) return;
+    if (!ok) return false;
     try {
       await api.delete(`/trainings/${t.id}`);
       trainings.reload();
       toast('已删除课程');
+      return true;
     } catch (e) {
       toast((e as Error).message, 'error');
+      return false;
     }
   };
 
@@ -86,8 +89,7 @@ export default function TrainingsPage() {
           <div className="grow" />
           <div className="flex gap-8 mt-14">
             <button className="btn sm grow" onClick={() => router.push(`/trainings/${t.id}`)}>名单</button>
-            {perms.write && <button className="btn ghost sm" onClick={() => router.push(`/trainings/${t.id}`)}>编辑</button>}
-            {perms.delete && <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => del(t)}>删除</button>}
+            {perms.write && <button className="btn ghost sm" onClick={() => setEditing(t)}>编辑</button>}
           </div>
         </div>
       ))}
@@ -112,16 +114,29 @@ export default function TrainingsPage() {
       </div>
       {ended.length ? renderCards(ended, true) : <div className="empty">暂无已结束的课程</div>}
 
-      {addOpen && (
+      {(addOpen || editing) && (
         <TrainingModal
           members={members.data ?? []}
-          onClose={() => setAddOpen(false)}
-          onSaved={(id) => {
+          initial={editing ?? undefined}
+          onClose={() => {
             setAddOpen(false);
-            trainings.reload();
-            toast('已新增课程');
-            router.push(`/trainings/${id}`);
+            setEditing(null);
           }}
+          onSaved={(id) => {
+            const wasEdit = !!editing;
+            setAddOpen(false);
+            setEditing(null);
+            trainings.reload();
+            toast(wasEdit ? '已更新课程' : '已新增课程');
+            if (!wasEdit) router.push(`/trainings/${id}`);
+          }}
+          onDelete={
+            editing && perms.delete
+              ? async () => {
+                  if (await del(editing)) setEditing(null);
+                }
+              : undefined
+          }
         />
       )}
     </>

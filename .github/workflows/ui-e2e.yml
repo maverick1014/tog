@@ -32,8 +32,10 @@ jobs:
     env:
       UI_E2E_URL: ${{ github.event.inputs.base_url || 'https://tog.tabernacleofgrace-cn.workers.dev' }}
       UI_E2E_EMAIL: ${{ secrets.SMOKE_EMAIL || 'john@grace.org' }}
-      # Set the SMOKE_PASSWORD repo secret to the test account's password.
-      UI_E2E_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+      # Falls back to the bootstrap test account (same as deploy.yml's api-e2e)
+      # when the SMOKE_PASSWORD secret isn't set — otherwise the script aborts
+      # with "UI_E2E_PASSWORD is required" and the whole workflow shows red.
+      UI_E2E_PASSWORD: ${{ secrets.SMOKE_PASSWORD || 'grace2026' }}
       UI_E2E_SHOTS: ${{ github.workspace }}/ui-shots
     steps:
       - uses: actions/checkout@v4

@@ -11,11 +11,13 @@ export function TrainingModal({
   initial,
   onClose,
   onSaved,
+  onDelete,
 }: {
   members: MemberRow[];
   initial?: TrainingRow;
   onClose: () => void;
   onSaved: (id: string) => void;
+  onDelete?: () => void;
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -103,6 +105,15 @@ export function TrainingModal({
         开放报名（成员可自助报名，待审核）
       </label>
       <div className="modal-actions">
+        {onDelete && (
+          <button
+            className="btn ghost"
+            style={{ color: 'var(--crit)', borderColor: 'var(--crit-soft)', marginRight: 'auto' }}
+            onClick={onDelete}
+          >
+            删除课程
+          </button>
+        )}
         <button className="btn ghost" onClick={onClose}>取消</button>
         <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '保存'}</button>
       </div>
