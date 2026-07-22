@@ -43,20 +43,22 @@ export default function EventsPage() {
   const now = new Date();
   const sorted = [...list].sort((a, b) => +new Date(b.starts_at) - +new Date(a.starts_at));
 
-  const delEvent = async (e: EventRow) => {
+  const delEvent = async (e: EventRow): Promise<boolean> => {
     const ok = await confirm({
       title: '删除聚会',
       message: `删除「${e.title}」及其出席记录？`,
       confirmText: '删除',
       danger: true,
     });
-    if (!ok) return;
+    if (!ok) return false;
     try {
       await api.delete(`/events/${e.id}`);
       events.reload();
       toast('已删除聚会');
+      return true;
     } catch (err) {
       toast((err as Error).message, 'error');
+      return false;
     }
   };
 
@@ -86,9 +88,6 @@ export default function EventsPage() {
                 <div className="flex gap-6">
                   {perms.write && (
                     <button className="btn ghost sm" onClick={() => setEditing(e)}>编辑</button>
-                  )}
-                  {perms.delete && (
-                    <button className="btn ghost sm" style={{ color: 'var(--crit)' }} onClick={() => delEvent(e)}>删除</button>
                   )}
                   <button className="btn sm" onClick={() => setActiveId(e.id)}>点名</button>
                 </div>
@@ -125,6 +124,13 @@ export default function EventsPage() {
             events.reload();
             toast(editing ? '已更新聚会' : '已新增聚会');
           }}
+          onDelete={
+            editing && perms.delete
+              ? async () => {
+                  if (await delEvent(editing)) setEditing(null);
+                }
+              : undefined
+          }
         />
       )}
     </>
@@ -247,10 +253,12 @@ function EventModal({
   event,
   onClose,
   onSaved,
+  onDelete,
 }: {
   event: EventRow | null;
   onClose: () => void;
   onSaved: () => void;
+  onDelete?: () => void;
 }) {
   const toast = useToast();
   const [form, setForm] = useState({
@@ -309,6 +317,15 @@ function EventModal({
         <input type="datetime-local" className={form.starts_at ? undefined : 'date-empty'} value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
       </Field>
       <div className="modal-actions">
+        {onDelete && (
+          <button
+            className="btn ghost"
+            style={{ color: 'var(--crit)', borderColor: 'var(--crit-soft)', marginRight: 'auto' }}
+            onClick={onDelete}
+          >
+            删除聚会
+          </button>
+        )}
         <button className="btn ghost" onClick={onClose}>取消</button>
         <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '保存'}</button>
       </div>
