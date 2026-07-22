@@ -159,7 +159,8 @@ tog/
 ### 5.5 Trainings (培训课程) + personal record
 - **Catalog:** name, 说明, 类别, **trainer**(讲师), **total_sessions**, **is_enrollable**, start/end dates.
 - **Sessions:** a training can have **multiple sessions** (number, title, time, location, notes).
-- **Enrollment:** member enrolls → `pending`; **admin approves** and tracks status (待审核/已通过/进行中/已完成/已退出) + progress 0–100.
+- **Enrollment:** member enrolls → `pending`; **admin approves** and tracks status (待审核/已通过/进行中/已完成/已退出). The 报名审核 progress bar shows each enrollee's **real attendance rate** (attended ÷ total sessions from the namelist).
+- **Public self-enrollment link (no login):** `/enroll/[id]` — sharable when the course is 开放报名. A visitor types their **full Chinese name**; the server enrolls them (`pending`) only if it matches **exactly one** existing member. No match / multiple matches → "请联系牧师加入成员系统" (never auto-creates a member, avoiding duplicates). Copy the link from the 培训详情 header (「🔗 报名链接」).
 - **Attendance / namelist:** admin marks attended per session; system **generates a checking namelist** (members × sessions grid with ✓).
 - **Personal training record:** on each member's detail page — every training they enrolled in + status + progress.
 
@@ -217,6 +218,7 @@ Tables:
 | `/discipleship` | 四十天守望 | cascade chain, **牧者总览** (per-pair progress + 复制链接/打开表单), a pair's 40-day grid |
 | `/discipleship/pairs/[id]` | 对子进度 | 40-day grid + cascade lineage (pastor view) |
 | `/d/[token]` | 每日填写页（独立） | **standalone, mobile-first, no login** mentor daily form |
+| `/enroll/[id]` | 培训报名页（独立） | **standalone, mobile-first, no login** self-enrollment — matches full Chinese name to a member |
 
 ---
 
@@ -229,7 +231,7 @@ Tables:
 | Households | `GET/POST /households`, `GET/PATCH/DELETE /households/:id` |
 | Events | `GET/POST /events`, `GET/PATCH/DELETE /events/:id`, `POST /events/:id/attendance` |
 | Donations | `GET/POST /donations`, `GET /donations/summary`, `PATCH/DELETE /donations/:id` |
-| Trainings | `GET/POST /trainings`, `GET/PATCH/DELETE /trainings/:id`, `GET /trainings/:id/namelist` |
+| Trainings | `GET/POST /trainings`, `GET/PATCH/DELETE /trainings/:id`, `GET /trainings/:id/namelist`, **public** `GET/POST /trainings/enroll/:id` |
 | Sessions | `POST /trainings/:id/sessions`, `PATCH/DELETE /trainings/sessions/:sessionId`, `POST /trainings/sessions/:sessionId/attendance` |
 | Enrollment | `POST /trainings/:id/enroll`, `PATCH/DELETE /trainings/enrollments/:enrollmentId` |
 | Discipleship | `GET/POST /discipleship/programs`, `GET /discipleship/programs/:id/overview`, `GET/POST /discipleship/pairs`, `GET/PATCH/DELETE /discipleship/pairs/:id`, `POST /discipleship/pairs/:id/progress` |

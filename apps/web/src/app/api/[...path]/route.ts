@@ -48,8 +48,11 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
   // ---- Auth + access control ------------------------------------------------
   if (r0 === 'auth') return authRoute(method, req, p, db);
 
-  // The mentor daily form (/d/<token>) is public by design — no session.
-  const isPublicForm = r0 === 'discipleship' && r1 === 'form';
+  // Public-by-design, no session: the mentor daily form (/d/<token>) and the
+  // training self-enrollment form (/enroll/<id>). Both are narrow, specific
+  // handlers below — nothing else under these prefixes is reachable unauthed.
+  const isPublicForm =
+    (r0 === 'discipleship' && r1 === 'form') || (r0 === 'trainings' && r1 === 'enroll');
   if (!isPublicForm) {
     const session = await getSession(req);
     if (!session) throw new HttpError(401, '未登录');
@@ -234,8 +237,64 @@ async function dispatch(method: string, req: Request, ctx: Ctx): Promise<Respons
 
   // ---- Trainings ------------------------------------------------------------
   if (r0 === 'trainings') {
+    // /trainings/enroll/:id — PUBLIC self-enrollment (no session; see the
+    // isPublicForm gate above). A visitor types their full Chinese name; we
+    // enroll them only if it matches exactly one existing member, otherwise we
+    // tell them to contact the pastor (never auto-create a member — avoids
+    // duplicates).
+    if (r1 === 'enroll' && r2) {
+      const training = unwrap<{
+        id: string;
+        name: string;
+        category: string | null;
+        is_enrollable: boolean;
+        total_sessions: number;
+      }>(
+        await db
+          .from('trainings')
+          .select('id,name,category,is_enrollable,total_sessions')
+          .eq('id', r2)
+          .single(),
+      );
+      if (method === 'GET') {
+        return json({
+          id: training.id,
+          name: training.name,
+          category: training.category,
+          is_enrollable: training.is_enrollable,
+          total_sessions: training.total_sessions,
+        });
+      }
+      if (method === 'POST') {
+        if (!training.is_enrollable) return json({ status: 'closed' });
+        const fullName = String((await body()).full_name ?? '').trim();
+        if (!fullName) return json({ status: 'no_member' });
+        const matches = unwrap<Array<{ id: string; full_name: string }>>(
+          await db.from('members').select('id,full_name').eq('full_name', fullName),
+        );
+        if (matches.length === 0) return json({ status: 'no_member' });
+        if (matches.length > 1) return json({ status: 'ambiguous' });
+        const member = matches[0];
+        const existing = unwrap<Array<{ id: string }>>(
+          await db
+            .from('training_enrollments')
+            .select('id')
+            .eq('training_id', r2)
+            .eq('member_id', member.id),
+        );
+        if (existing.length > 0) return json({ status: 'already', name: member.full_name });
+        unwrap(
+          await db
+            .from('training_enrollments')
+            .insert({ training_id: r2, member_id: member.id, status: 'pending' })
+            .select('id')
+            .single(),
+        );
+        return json({ status: 'ok', name: member.full_name });
+      }
+    }
     // /trainings/sessions/:sessionId ...
-    if (r1 === 'sessions' && r2) {
+    else if (r1 === 'sessions' && r2) {
       if (r3 === 'attendance' && method === 'POST') {
         const dto = await body();
         const records = (dto.records as Array<Record<string, unknown>>).map((r) => ({

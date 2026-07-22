@@ -47,8 +47,9 @@ documented decision). A page that can only create + list is incomplete.
 - **Client (UX):** never render an action a user's role cannot perform. Fetch the
   session role (`/api/auth/me`) and hide/disable nav items, buttons, and whole
   pages the role isn't allowed to use. A button that only ever returns 403 is a
-  bug. The single public exception is the mentor form under
-  `/api/discipleship/form/*` (+ `/api/auth/*`).
+  bug. The public exceptions (no session) are the mentor daily form under
+  `/api/discipleship/form/*`, the training self-enrollment form under
+  `/api/trainings/enroll/*` (+ `/api/auth/*`) — each a narrow, specific handler.
 
 ### G3 — Every destructive action shows a confirmation
 Any delete/remove/detach/irreversible action (`api.delete(...)`, or a mutation

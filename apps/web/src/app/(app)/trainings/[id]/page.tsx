@@ -54,6 +54,16 @@ export default function TrainingDetailPage() {
   const t = detail.data;
   const pending = t.enrollments.filter((e) => e.status === EnrollmentStatus.Pending).length;
 
+  // Real attendance rate for the 报名审核 bar: attended sessions / total sessions,
+  // read from the 核对名单 (only approved+ enrollees appear there, so a pending
+  // enrollee correctly shows 0%).
+  const sessionTotal = nl?.sessions.length ?? 0;
+  const attendanceOf = (memberId: string) => {
+    const row = nl?.rows.find((r) => r.member.id === memberId);
+    const attended = row ? row.attendance.filter((a) => a.attended).length : 0;
+    return { attended, total: sessionTotal, pct: sessionTotal ? Math.round((attended / sessionTotal) * 100) : 0 };
+  };
+
   const approve = async (enrollmentId: string) => {
     try {
       await api.patch(`/trainings/enrollments/${enrollmentId}`, {
@@ -161,6 +171,14 @@ export default function TrainingDetailPage() {
     exportMatrix(`${t.name}_核对名单`, '名单', headers, matrix);
   };
 
+  const copyEnrollLink = () => {
+    const link = `${window.location.origin}/enroll/${id}`;
+    navigator.clipboard?.writeText(link).then(
+      () => toast('报名链接已复制，可发给大家'),
+      () => toast(link),
+    );
+  };
+
   return (
     <>
       <button className="back-btn" onClick={() => router.push('/trainings')}>‹ 返回课程目录</button>
@@ -178,6 +196,9 @@ export default function TrainingDetailPage() {
             </div>
           </div>
           <div className="flex gap-8">
+            {t.is_enrollable && (
+              <button className="btn ghost" onClick={copyEnrollLink} title="复制可发给成员的自助报名链接">🔗 报名链接</button>
+            )}
             {perms.write && <button className="btn ghost" onClick={() => setEditOpen(true)}>编辑课程</button>}
             {perms.delete && <button className="btn ghost" style={{ color: 'var(--crit)' }} onClick={del}>删除</button>}
           </div>
@@ -234,14 +255,19 @@ export default function TrainingDetailPage() {
             </div>
           )}
           <div style={{ maxHeight: 296, overflowY: 'auto' }}>
-            {t.enrollments.map((e) => (
+            {t.enrollments.map((e) => {
+              const att = attendanceOf(e.member_id);
+              return (
               <div key={e.id} className="flex items-center gap-10" style={{ padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
                 <div className="grow" style={{ minWidth: 0 }}>
                   <strong style={{ fontSize: 13 }}>{e.member?.full_name ?? '—'}</strong>
                   <div className="muted" style={{ fontSize: 11.5 }}>{e.member ? memberRoleZh(e.member) : ''}</div>
                 </div>
-                <div className="bar thin" style={{ width: 80, flex: 'none' }}>
-                  <span style={{ width: `${e.progress}%` }} />
+                <div className="flex items-center gap-6" style={{ flex: 'none' }} title={`出席 ${att.attended}/${att.total} 场`}>
+                  <div className="bar thin" style={{ width: 64 }}>
+                    <span style={{ width: `${att.pct}%` }} />
+                  </div>
+                  <span className="faint tnum" style={{ fontSize: 11, minWidth: 26 }}>{att.attended}/{att.total}</span>
                 </div>
                 <span className={`badge ${enrollmentStatusClass(e.status)}`} style={{ flexShrink: 0 }}>
                   {ENROLLMENT_STATUS_LABELS[e.status] ?? e.status}
@@ -256,7 +282,8 @@ export default function TrainingDetailPage() {
                   <button className="btn ghost sm" style={{ flexShrink: 0, color: 'var(--crit)' }} onClick={() => removeEnrollment(e, false)}>移除</button>
                 )}
               </div>
-            ))}
+              );
+            })}
             {t.enrollments.length === 0 && (
               <div className="faint" style={{ textAlign: 'center', padding: 20, fontSize: 13 }}>尚无报名。</div>
             )}

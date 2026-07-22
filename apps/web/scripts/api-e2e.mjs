@@ -118,6 +118,15 @@ async function main() {
       ok('enroll member → 200 + id', enr.status === 200 && enr.json?.id, `status ${enr.status}`);
       if (enr.json?.id) ok('approve enrollment → 200', (await req('PATCH', `/api/trainings/enrollments/${enr.json.id}`, { ...H, body: { status: 'approved' } })).status === 200);
     }
+    // Public self-enrollment (no auth) — matches a full Chinese name to a member.
+    const pubInfo = await req('GET', `/api/trainings/enroll/${trId}`);
+    ok('public enroll info (no auth) → 200', pubInfo.status === 200 && pubInfo.json?.is_enrollable === true, `status ${pubInfo.status}`);
+    const badEnroll = await req('POST', `/api/trainings/enroll/${trId}`, { body: { full_name: `查无此人-${Date.now()}` } });
+    ok('public enroll unknown name → no_member', badEnroll.json?.status === 'no_member', JSON.stringify(badEnroll.json));
+    if (members?.length) {
+      const matchEnroll = await req('POST', `/api/trainings/enroll/${trId}`, { body: { full_name: members[members.length - 1].full_name } });
+      ok('public enroll matched name → ok/already/ambiguous', ['ok', 'already', 'ambiguous'].includes(matchEnroll.json?.status), JSON.stringify(matchEnroll.json));
+    }
     ok('delete training → 200', (await req('DELETE', `/api/trainings/${trId}`, H)).status === 200);
   }
 
