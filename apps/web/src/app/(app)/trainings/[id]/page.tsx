@@ -412,22 +412,22 @@ function SessionModal({
   return (
     <Modal title={session ? '编辑场次' : '新增场次'} onClose={onClose}>
       {err && <ErrorBanner message={err} />}
+      {/* 标题 is the primary field (full width); the shorter 第几课 + 时间 share
+          one row; 地点 gets its own full-width row — a tidy 1 / 2 / 1 layout. */}
+      <Field label="课程标题">
+        <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="得救确据" />
+      </Field>
       <div className="form-row">
         <Field label="第几课">
-          <input type="number" value={form.session_number} onChange={(e) => setForm({ ...form, session_number: Number(e.target.value) })} />
+          <input type="number" min={1} value={form.session_number} onChange={(e) => setForm({ ...form, session_number: Number(e.target.value) })} />
         </Field>
-        <Field label="标题">
-          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="得救确据" />
-        </Field>
-      </div>
-      <div className="form-row">
         <Field label="时间">
           <input type="datetime-local" className={form.scheduled_at ? undefined : 'date-empty'} value={form.scheduled_at} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} />
         </Field>
-        <Field label="地点">
-          <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="副堂" />
-        </Field>
       </div>
+      <Field label="地点">
+        <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="副堂" />
+      </Field>
       <div className="modal-actions">
         <button className="btn ghost" onClick={onClose}>取消</button>
         <button className="btn" onClick={save} disabled={saving}>{saving ? '保存中…' : '保存'}</button>
