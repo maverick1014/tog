@@ -439,16 +439,17 @@ td {
   padding: 11px 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
-  white-space: nowrap;
 }
-/* Every column hugs its content; the FIRST column (the primary name/title in
-   all our list tables) absorbs the leftover width, instead of the browser
-   spreading the slack evenly across every column. Secondary columns therefore
-   stay tight and consistent from table to table. */
-table th:first-child,
-table td:first-child {
-  width: 100%;
-  white-space: normal;
+/* Even-column list tables: `table-layout: fixed` makes columns with an explicit
+   width (the narrow utility columns — status/date/count, and the chevron) keep
+   that width, while the remaining content columns divide the leftover space
+   EQUALLY. Set widths on the header (thead) cells; the body follows. */
+.table-fixed {
+  table-layout: fixed;
+}
+.table-fixed td {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* A lone trailing chevron/icon-button column (the "open detail" affordance)
    should hug the row's right edge instead of carrying full text-cell padding.
@@ -1324,10 +1325,6 @@ textarea {
     padding: 8px 12px;
     border: none;
     text-align: right;
-    /* Undo the desktop single-line rule so long values (e.g. emails) wrap
-       inside the stacked card instead of overflowing it. */
-    white-space: normal;
-    width: auto;
   }
   table.stack td[data-label]::before {
     content: attr(data-label);

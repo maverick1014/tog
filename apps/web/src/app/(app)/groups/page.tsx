@@ -91,14 +91,16 @@ export default function GroupsPage() {
       {/* Desktop — table */}
       <div className="card only-desktop" style={{ padding: 6 }}>
         <div className="table-wrap">
-          <table>
+          <table className="table-fixed">
             <thead>
               <tr>
+                {/* All four content columns share the width equally; only the
+                    chevron column stays narrow. */}
                 <SortTh sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>小组名称</SortTh>
                 <SortTh sortKey="leader" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>组长</SortTh>
                 <SortTh sortKey="count" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>组员人数</SortTh>
                 <th>聚会时间 / 地点</th>
-                <th />
+                <th style={{ width: 52 }} />
               </tr>
             </thead>
             <tbody>
