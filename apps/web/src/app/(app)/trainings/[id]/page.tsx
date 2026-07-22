@@ -55,12 +55,16 @@ export default function TrainingDetailPage() {
   const pending = t.enrollments.filter((e) => e.status === EnrollmentStatus.Pending).length;
 
   const approve = async (enrollmentId: string) => {
-    await api.patch(`/trainings/enrollments/${enrollmentId}`, {
-      status: EnrollmentStatus.Approved,
-    });
-    detail.reload();
-    namelist.reload();
-    toast('已通过报名');
+    try {
+      await api.patch(`/trainings/enrollments/${enrollmentId}`, {
+        status: EnrollmentStatus.Approved,
+      });
+      detail.reload();
+      namelist.reload();
+      toast('已通过报名');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
   };
 
   const enrollMember = async (memberId: string) => {
@@ -70,15 +74,19 @@ export default function TrainingDetailPage() {
       detail.reload();
       toast('已加入报名');
     } catch (e) {
-      toast((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
   const toggleTick = async (sessionId: string, memberId: string, attended: boolean) => {
-    await api.post(`/trainings/sessions/${sessionId}/attendance`, {
-      records: [{ member_id: memberId, attended }],
-    });
-    namelist.reload();
+    try {
+      await api.post(`/trainings/sessions/${sessionId}/attendance`, {
+        records: [{ member_id: memberId, attended }],
+      });
+      namelist.reload();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
   };
 
   const delSession = async (s: SessionRow) => {
@@ -95,7 +103,7 @@ export default function TrainingDetailPage() {
       namelist.reload();
       toast('已删除场次');
     } catch (e) {
-      toast((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
@@ -115,7 +123,7 @@ export default function TrainingDetailPage() {
       namelist.reload();
       toast(pendingReject ? '已拒绝报名' : '已移除报名');
     } catch (err) {
-      toast((err as Error).message);
+      toast((err as Error).message, 'error');
     }
   };
 
@@ -127,8 +135,13 @@ export default function TrainingDetailPage() {
       danger: true,
     });
     if (!ok) return;
-    await api.delete(`/trainings/${id}`);
-    router.push('/trainings');
+    try {
+      await api.delete(`/trainings/${id}`);
+      toast('已删除课程');
+      router.push('/trainings');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
   };
 
   const exportNamelist = () => {
@@ -150,7 +163,7 @@ export default function TrainingDetailPage() {
 
   return (
     <>
-      <button className="back-btn" onClick={() => router.push('/trainings')}>← 返回课程目录</button>
+      <button className="back-btn" onClick={() => router.push('/trainings')}>‹ 返回课程目录</button>
 
       <div className="card">
         <div className="flex-between flex-wrap">
@@ -365,6 +378,7 @@ function SessionModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState({
     session_number: session?.session_number ?? nextNumber,
     title: session?.title ?? '',
@@ -389,6 +403,7 @@ function SessionModal({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

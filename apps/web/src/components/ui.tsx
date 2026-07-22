@@ -5,6 +5,7 @@ import {
   ReactNode,
   useCallback,
   useContext,
+  useRef,
   useState,
 } from 'react';
 import { initialOf, roleDot, roleTagStyle } from '@/lib/labels';
@@ -344,20 +345,40 @@ export function useConfirm() {
  * Toast
  * ---------------------------------------------------------------------- */
 
-const ToastContext = createContext<(msg: string) => void>(() => {});
+export type ToastVariant = 'success' | 'error';
+type ToastItem = { id: number; message: string; variant: ToastVariant };
+
+// The callback takes an optional variant so every call site can report both
+// outcomes — `toast('已保存')` (success, the default) or
+// `toast('保存失败：…', 'error')`. Toasts stack top-right (top-centre on
+// mobile) and auto-dismiss, so a burst of actions never clobbers itself.
+const ToastContext = createContext<(message: string, variant?: ToastVariant) => void>(() => {});
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [msg, setMsg] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const nextId = useRef(0);
 
-  const show = useCallback((m: string) => {
-    setMsg(m);
-    window.setTimeout(() => setMsg(null), 2200);
+  const show = useCallback((message: string, variant: ToastVariant = 'success') => {
+    const id = nextId.current++;
+    setToasts((list) => [...list, { id, message, variant }]);
+    window.setTimeout(() => {
+      setToasts((list) => list.filter((t) => t.id !== id));
+    }, 2800);
   }, []);
 
   return (
     <ToastContext.Provider value={show}>
       {children}
-      {msg && <div className="toast">{msg}</div>}
+      {toasts.length > 0 && (
+        <div className="toast-stack">
+          {toasts.map((t) => (
+            <div key={t.id} className={`toast ${t.variant}`} role="status">
+              <span className="toast-icon">{t.variant === 'error' ? '✕' : '✓'}</span>
+              <span>{t.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </ToastContext.Provider>
   );
 }

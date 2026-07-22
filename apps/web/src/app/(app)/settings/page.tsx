@@ -269,6 +269,7 @@ function AccountDetail({
       toast(`已为 ${account.member?.full_name ?? '该账户'} 重设密码`);
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setPwBusy(false);
     }
@@ -287,6 +288,7 @@ function AccountDetail({
       onDeleted();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     }
   };
 
@@ -304,6 +306,7 @@ function AccountDetail({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setBusy(false);
     }
@@ -311,7 +314,7 @@ function AccountDetail({
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <button className="back-btn" onClick={onBack}>← 返回用户列表</button>
+      <button className="back-btn" onClick={onBack}>‹ 返回用户列表</button>
       {err && <ErrorBanner message={err} />}
 
       <div className="card">
@@ -424,6 +427,7 @@ function AddAccountModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const takenMembers = new Set(existing.map((a) => a.member_id));
   const [memberId, setMemberId] = useState('');
   const [role, setRole] = useState<AccountRole>(AccountRole.Coworker);
@@ -461,6 +465,7 @@ function AddAccountModal({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

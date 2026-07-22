@@ -72,7 +72,7 @@ export default function MemberDetailPage() {
       toast('头像已更新');
       member.reload();
     } catch (err) {
-      toast((err as Error).message);
+      toast((err as Error).message, 'error');
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -102,7 +102,7 @@ export default function MemberDetailPage() {
   return (
     <>
       <button className="back-btn" onClick={() => router.push('/members')}>
-        ← 返回成员目录
+        ‹ 返回成员目录
       </button>
 
       <div className="card">
@@ -156,7 +156,7 @@ export default function MemberDetailPage() {
                     toast('已删除成员');
                     router.push('/members');
                   } catch (e) {
-                    toast((e as Error).message);
+                    toast((e as Error).message, 'error');
                   }
                 }}
               >
@@ -282,6 +282,7 @@ function EditMemberModal({
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const toast = useToast();
 
   const allGroups = useFetch<GroupRow[]>('/groups');
   // Sibling members of whichever group is currently SELECTED (not necessarily
@@ -334,6 +335,7 @@ function EditMemberModal({
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }

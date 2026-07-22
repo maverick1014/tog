@@ -55,9 +55,13 @@ export default function TrainingsPage() {
       danger: true,
     });
     if (!ok) return;
-    await api.delete(`/trainings/${t.id}`);
-    trainings.reload();
-    toast('已删除课程');
+    try {
+      await api.delete(`/trainings/${t.id}`);
+      trainings.reload();
+      toast('已删除课程');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
   };
 
   const renderCards = (items: TrainingRow[], faded?: boolean) => (

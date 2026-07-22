@@ -1009,20 +1009,51 @@ textarea {
   margin-top: 10px;
 }
 
-.toast {
+/* Toasts stack in the top-right corner on desktop; @media below re-centres
+   them at the top on small screens. The stack is click-through except for the
+   toasts themselves. */
+.toast-stack {
   position: fixed;
-  left: 50%;
-  bottom: 26px;
-  transform: translateX(-50%);
+  top: 20px;
+  right: 24px;
   z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 32px));
   background: var(--ink);
-  color: var(--paper);
-  padding: 11px 20px;
-  border-radius: 999px;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 12px;
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.4;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   animation: pop 0.2s ease;
+  pointer-events: auto;
+}
+.toast.success {
+  background: var(--good);
+}
+.toast.error {
+  background: var(--crit);
+}
+.toast-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
@@ -1113,6 +1144,10 @@ textarea {
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 14px;
+  /* Sits at the right edge of its row rather than the left. */
+  display: block;
+  width: fit-content;
+  margin-left: auto;
 }
 
 /* ==========================================================================
@@ -1280,5 +1315,17 @@ textarea {
     font-weight: 600;
     text-align: left;
     flex-shrink: 0;
+  }
+}
+
+/* On phones the top-right corner is cramped by the header — centre the toast
+   stack along the top edge instead. */
+@media (max-width: 640px) {
+  .toast-stack {
+    top: 14px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    align-items: center;
   }
 }
