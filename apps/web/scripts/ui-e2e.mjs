@@ -261,11 +261,35 @@ async function main() {
       stream(`  ↳ ${why}: ${gone ? 'deleted' : 'COULD NOT DELETE'} leftover ${f.label} (${f.path})`);
     }
   };
+  /**
+   * Settings this run took over and must hand back — the church's add-on module
+   * states and the account's interface language. Deleting a fixture is not
+   * enough: those two are switches on the LIVE church, and a run that dies
+   * holding one leaves real users with a module switched off or an interface in
+   * a language nobody chose.
+   *
+   * Each entry re-reads the current value and only writes when it differs, so
+   * running one twice is harmless — which is what lets the normal path keep its
+   * own explicit restores while the crash path below drains the same list.
+   */
+  const restorers = [];
+  const restoreLater = (label, run) => restorers.push({ label, run });
+  const runRestorers = async (why, stream = console.log) => {
+    for (const r of restorers.splice(0).reverse()) {
+      const ok = await r.run().then(() => true).catch(() => false);
+      stream(`  ↳ ${why}: ${ok ? 'restored' : 'COULD NOT RESTORE'} ${r.label}`);
+    }
+  };
+
   const dieCleanly = async (why, err) => {
     if (err) console.error(`UI E2E ${why}:`, err);
     if (leftovers.length) {
       console.error(`\n${leftovers.length} fixture(s) still live after ${why} — removing them.`);
       await sweep(why, console.error).catch(() => {});
+    }
+    if (restorers.length) {
+      console.error(`${restorers.length} live setting(s) still held after ${why} — handing them back.`);
+      await runRestorers(why, console.error).catch(() => {});
     }
     process.exit(1);
   };
@@ -274,6 +298,25 @@ async function main() {
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, () => void dieCleanly(sig));
   }
+
+  // Today in MALAYSIA — the zone every sheet is read in. The runner may be in
+  // UTC (or anywhere), so taking the month from `new Date()` would open the
+  // wrong sheet for the first 8 hours of a new month (rule G6a).
+  const KL_TODAY = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  const [SHEET_YEAR, SHEET_MONTH] = KL_TODAY.split('-');
+
+  /** One member's cells on a congregation's Sunday sheet, straight from the API. */
+  const sundayCellsOf = async (hallId, memberId) => {
+    const sheet = await apiGet(
+      `/attendance/sundays?hall_id=${hallId}&year=${SHEET_YEAR}&month=${Number(SHEET_MONTH)}`,
+    );
+    return sheet.rows.find((r) => r.member?.id === memberId)?.cells ?? {};
+  };
 
   // Members and groups carry a NOT NULL hall. A hall-scoped account would have
   // one forced on server-side, but this login is 全堂权限, so it must name one.
@@ -317,15 +360,19 @@ async function main() {
     };
   };
 
-  /** A throwaway event starting now, so it lands in the page's "Today" section. */
+  /**
+   * A throwaway hand-added meeting, starting now so it lands in the month the
+   * 崇拜与祷告会 page opens on. Sundays are no longer events at all (they are
+   * the sheet), so this is a plain `meeting` — the shape someone actually adds.
+   */
   const makeEvent = async () => {
     const row = await apiPost('/events', {
-      title: fixtureName('EVENT'),
-      event_type: 'service',
+      title: fixtureName('MEETING'),
+      event_type: 'meeting',
       starts_at: new Date().toISOString(),
       hall_id: await someHallId(),
     });
-    return { id: row.id, name: row.title, remove: disposable(`event ${row.title}`, `/events/${row.id}`) };
+    return { id: row.id, name: row.title, remove: disposable(`meeting ${row.title}`, `/events/${row.id}`) };
   };
 
   /**
@@ -353,6 +400,32 @@ async function main() {
       sessionTitle,
       enrollee,
       remove: async () => { await removeTraining(); await enrollee.remove(); },
+    };
+  };
+
+  /**
+   * A throwaway ACTIVITY — the other shape in the same catalog (`kind`,
+   * migration 0014): one occasion, one sign-up, one column to tick. Its single
+   * session is created by the API with it, so nothing is added here; the
+   * approved sign-up is what puts a row on its roll call.
+   */
+  const makeActivity = async () => {
+    const row = await apiPost('/trainings', {
+      name: fixtureName('ACTIVITY'),
+      kind: 'activity',
+      is_enrollable: true,
+      starts_on: KL_TODAY,
+      ends_on: KL_TODAY,
+      hall_id: await someHallId(),
+    });
+    const removeActivity = disposable(`activity ${row.name}`, `/trainings/${row.id}`);
+    const goer = await makeMember('GOER');
+    await apiPost(`/trainings/${row.id}/enroll`, { member_id: goer.id, status: 'approved' });
+    return {
+      id: row.id,
+      name: row.name,
+      goer,
+      remove: async () => { await removeActivity(); await goer.remove(); },
     };
   };
 
@@ -461,10 +534,16 @@ async function main() {
     if (!loggedIn) throw new Error('login failed — aborting remaining checks');
     const sidebar = await page.locator('.sidebar').innerText();
     check(
-      'sidebar lists every module + Users (super admin only)',
-      ['Members', 'Life Groups', 'Events & Attendance', 'Trainings', 'Forty Days', 'Users']
+      'sidebar lists every module + Users and Church settings (super admin only)',
+      ['Members', 'Life Groups', 'Services', 'Trainings & Activities', 'Forty Days', 'Users', 'Church settings']
         .every((label) => sidebar.includes(label)),
     );
+    // The brand at the top of the sidebar is the CHURCH's own name, read from
+    // its record — not a translated string and not a hardcoded one.
+    const churchRecord = await apiGet('/church');
+    check('the sidebar brand shows the church record’s name',
+      sidebar.includes(churchRecord.short_name || churchRecord.name),
+      churchRecord.short_name || churchRecord.name);
     await shot('01-dashboard');
 
     /* -- member directory ------------------------------------------------- */
@@ -549,43 +628,200 @@ async function main() {
       check('the roster lists the member who is in this group',
         (await page.locator(`td:has-text("${fxGroup.member.name}")`).count()) > 0);
       await shot('04-group-detail');
+
+      // The card's own tabs: 小组 (default) / 会前 / 主日. The two Sunday tabs
+      // show THIS group's members against the congregation's own Sunday sheet
+      // — the same rows and the same PUT the services page uses, which is why
+      // a tick here and a tick there are one fact. The group names its hall
+      // itself, so this works while the shell is still on 全部堂会.
+      const tabs = page.locator('.seg.tabs button');
+      check('the roll-call card offers 小组 / 会前 / 主日 tabs',
+        (await tabs.count()) === 3, (await tabs.allInnerTexts()).join(' | '));
+      check('小组 is the tab it opens on',
+        (await tabs.first().getAttribute('aria-pressed')) === 'true');
+      // The tabs are the CARD's own filters — the page bar belongs to the page.
+      check('the tabs are inside the card, not in the page bar',
+        (await page.locator('.page-bar .seg').count()) === 0);
+
+      const groupHallId = await someHallId();
+      await tabs.nth(1).click(); // 会前
+      await w(900);
+      // Scope to the roll-call card: the roster table further down the page
+      // lists the same person, so an unscoped row locator matches twice and the
+      // count assertion below is measuring the wrong thing.
+      const sheetCard = page.locator('.card', { has: page.locator('.seg.tabs') });
+      const sundayRow = sheetCard.locator('tr', { has: page.locator(`td:has-text("${fxGroup.member.name}")`) });
+      await sundayRow.first().waitFor({ timeout: 20000 });
+      check('the 会前 tab lists this group’s members against the Sunday sheet',
+        (await sundayRow.count()) === 1, `${await sundayRow.count()} row(s)`);
+      const sundayTick = sundayRow.locator('input[type=checkbox]').first();
+      // click, not check(): the tick is optimistic and the row re-renders from
+      // the server, so the checkbox's own state is not the fact worth
+      // asserting — the row in the congregation's sheet is, and that is what
+      // the next check reads back through the API.
+      await sundayTick.click();
+      await w(1500);
+      const gTicked = await sundayCellsOf(groupHallId, fxGroup.member.id);
+      check('ticking 会前 here writes the congregation’s Sunday sheet',
+        Object.values(gTicked).some((c) => c.pre_service), JSON.stringify(gTicked));
+      await sundayTick.click();
+      await w(1500);
+      const gCleared = await sundayCellsOf(groupHallId, fxGroup.member.id);
+      check('unticking it leaves no row behind', Object.keys(gCleared).length === 0, JSON.stringify(gCleared));
+      // …and 主日 is the same sheet's other tick, not a second sheet.
+      await tabs.nth(2).click();
+      await w(900);
+      check('the 主日 tab shows the same members', (await sundayRow.count()) === 1);
+      await tabs.first().click();
+      await w(600);
+      check('switching back to 小组 restores the group’s own columns',
+        (await page.locator('th:has-text("Week")').count()) > 0);
     } finally {
       await fxGroup.remove();
     }
 
-    /* -- events & attendance ---------------------------------------------- */
-    // Roll call and the edit dialog both need an event to open. The calendar is
-    // empty in the live database, so this module supplies one and works on it
-    // by name — never on "whatever sorts first".
-    mod('events & attendance');
-    const fxEvent = await makeEvent();
+    /* -- services · the Sunday sheet + hand-added meetings ----------------- */
+    // The page is a SHEET now: members down the left, the month's Sundays
+    // across the top, two ticks per Sunday (会前 / 主日). Nothing creates a
+    // Sunday — the calendar already has them — so this module needs only a
+    // member to put on the sheet, plus one hand-added meeting for the card
+    // underneath it.
+    //
+    // A sheet is always ONE congregation, so a full-access account has to pick
+    // one first; on a phone the switcher lives in the nav drawer. That choice
+    // is client state only, so a later page load resets it — nothing to undo.
+    mod('services · sunday sheet · meetings');
+    const fxSheetMember = await makeMember('SUNDAY');
+    const fxMeeting = await makeEvent();
+    const sheetHallId = await someHallId();
+    /** That member's cells on the live sheet, straight from the API. */
+    const sheetCells = () => sundayCellsOf(sheetHallId, fxSheetMember.id);
     try {
       await page.goto(`${BASE}/events`, { waitUntil: 'domcontentloaded' });
-      const eventCard = page.locator('.card', { hasText: fxEvent.name });
-      await eventCard.first().waitFor({ timeout: 20000 });
-      check('a created event appears on the events page', (await eventCard.count()) === 1);
-      await eventCard.locator('button:visible:has-text("Roll call")').first().click();
+      await page.locator('.page-bar').first().waitFor({ state: 'attached', timeout: 20000 });
+      // Whether a congregation has to be picked is a property of the ACCOUNT,
+      // not of what has rendered yet — so ask the API rather than racing the
+      // switcher into the DOM.
+      const sheetHalls = await apiGet('/halls');
+      if (sheetHalls.length > 1) {
+        const hallSelect = page.locator('.sidebar .nav-hall select');
+        await hallSelect.waitFor({ state: 'attached', timeout: 20000 });
+        await w(600);
+        const beforePick = await page.locator('.content').innerText();
+        check('on 全部堂会 the sheet asks for a congregation instead of merging them',
+          /congregation/i.test(beforePick), beforePick.replace(/\s+/g, ' ').slice(0, 120));
+        // Open and close by whatever the drawer's own state says, never by
+        // assuming. Two things make a blind sequence hang here: with the drawer
+        // OPEN the scrim covers the viewport at z-index 55 while the topbar
+        // holding the hamburger sits at 5, so a second hamburger click can
+        // never land; and with the drawer CLOSED the scrim is display:none, so
+        // clicking that hangs instead. Which of the two applies after picking a
+        // congregation depends on whether the shell closed the drawer itself.
+        const drawerOpen = () => page.locator('.app-shell.nav-open').count().then((n) => n > 0);
+        // This click has timed out three times and each diagnosis was a guess,
+        // so record what is actually on screen at the moment it happens: the
+        // button's box, whether the browser agrees it is visible, and what sits
+        // at its centre point. A screenshot goes with it, because the artifact
+        // outlives the log.
+        const burger = page.locator('.hamburger');
+        const burgerBox = await burger.boundingBox().catch(() => null);
+        const onTop = burgerBox
+          ? await page.evaluate(
+              ([x, y]) => {
+                const el = document.elementFromPoint(x, y);
+                return el ? `${el.tagName.toLowerCase()}.${el.className || '(no class)'}` : 'nothing';
+              },
+              [burgerBox.x + burgerBox.width / 2, burgerBox.y + burgerBox.height / 2],
+            )
+          : 'no box';
+        check('the menu button is reachable before picking a congregation',
+          !!burgerBox && (await burger.isVisible()) && onTop.startsWith('button'),
+          `box=${JSON.stringify(burgerBox)} visible=${await burger.isVisible()} atPoint=${onTop}`);
+        await shot('05a-services-before-pick');
+        if (!(await drawerOpen())) await burger.click();
+        await hallSelect.selectOption(sheetHallId);
+        await w(400);
+        if (await drawerOpen()) {
+          // Click the scrim to the RIGHT of the drawer. The scrim is inset: 0,
+          // so its centre — which is where a plain click() aims — is x≈201 on a
+          // 402px phone, and the open sidebar is 244px wide at z-index 60. The
+          // centre of the scrim is therefore underneath the sidebar, and the
+          // click waits forever for a point that will never receive it.
+          await page.locator('.scrim').click({ position: { x: 340, y: 420 } });
+        }
+        await w(300);
+      }
+      const memberCell = page.locator(`td:has-text("${fxSheetMember.name}")`);
+      await memberCell.first().waitFor({ timeout: 20000 });
+      check('the Sunday sheet lists the congregation’s members on roll',
+        (await memberCell.count()) === 1);
+      // One column group per Sunday, each split in two, plus the totals pair —
+      // so at least five 会前 headers in any month.
+      const preHeads = await page.locator('th:has-text("Pre-service")').count();
+      check('every Sunday gets a 会前 / 主日 pair of columns', preHeads >= 5, `${preHeads} headers`);
+      check('the sheet is ticked with check boxes, like the life-group sheet',
+        (await page.locator('input[type=checkbox]').count()) > 0);
+
+      // Tick → the cell is stored; untick → the row is GONE, not stored as two
+      // falses ("no row" already means "not recorded").
+      const sheetRow = page.locator('tr', { has: page.locator(`td:has-text("${fxSheetMember.name}")`) });
+      const firstTick = sheetRow.locator('input[type=checkbox]').first();
+      // click, not check(): the tick is optimistic and the row re-renders from
+      // the server, so the checkbox's own state is not the fact worth
+      // asserting — the row in the sheet is, and that is what the next check
+      // reads back through the API. Same reasoning as the group tabs above.
+      await firstTick.click();
+      await w(1500);
+      const ticked = await sheetCells();
+      check('ticking a cell records that Sunday',
+        Object.values(ticked).some((c) => c.pre_service), JSON.stringify(ticked));
+      await firstTick.click();
+      await w(1500);
+      const cleared = await sheetCells();
+      check('unticking it leaves no row behind', Object.keys(cleared).length === 0, JSON.stringify(cleared));
+
+      // The card below: the meetings someone genuinely added this month.
+      const meetingLine = page.locator('.meeting-row', { hasText: fxMeeting.name });
+      await meetingLine.first().waitFor({ timeout: 20000 });
+      check('a hand-added meeting is listed under the sheet', (await meetingLine.count()) === 1);
+      await meetingLine.locator('button:visible:has-text("Roll call")').first().click();
       await page.locator('.modal').waitFor({ timeout: 8000 });
       check('roll call opens the attendance modal', true);
       await page.locator('.modal .icon-btn, .modal button:has-text("Close")').first().click();
       await w(300);
-      await eventCard.locator('button:visible:has-text("Edit")').first().click();
+      await meetingLine.locator('button:visible:has-text("Edit")').first().click();
       await page.locator('.modal').waitFor({ timeout: 8000 });
-      check('the event edit modal opens', true);
-      check('the edit modal opens on that event',
-        (await page.locator('.modal input').first().inputValue()) === fxEvent.name);
+      check('the edit modal opens on that meeting',
+        (await page.locator('.modal input').first().inputValue()) === fxMeeting.name);
+      // A hand-added meeting needs a name and a date, nothing else: no type,
+      // no location. Two inputs (+ the congregation select) and no more.
+      check('a meeting asks only for a name and a date',
+        (await page.locator('.modal input').count()) === 2,
+        `${await page.locator('.modal input').count()} inputs`);
       await page.locator('.modal button:has-text("Cancel")').first().click();
+      await w(300);
+
+      // The sheet is the widest thing in the app. It has to scroll inside its
+      // own card — the page body must never scroll sideways on a phone, and
+      // the sweep further down measures /events on 全部堂会, where the sheet
+      // is not drawn at all.
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      check('the wide sheet scrolls inside its card, not the page', over <= 1, `+${over}px`);
       await shot('05-events');
     } finally {
-      await fxEvent.remove();
+      await fxMeeting.remove();
+      await fxSheetMember.remove();
     }
 
     /* -- trainings -------------------------------------------------------- */
     // The catalog is empty in the live database, so the course opened here is
     // one this module creates — with a session and a pending enrolee, which is
     // what makes the detail page's two panels worth asserting on at all.
-    mod('trainings · detail');
+    mod('trainings & activities · catalog · detail');
     const fxTraining = await makeTraining();
+    const fxActivity = await makeActivity();
     try {
       await page.goto(`${BASE}/trainings`, { waitUntil: 'domcontentloaded' });
       const courseTitle = page.locator('.card h3', { hasText: fxTraining.name });
@@ -601,7 +837,47 @@ async function main() {
       check('a pending enrolee is offered for approval',
         (await page.locator('.enrol-row button:has-text("Approve")').count()) > 0);
       await shot('06-training-detail');
+
+      // The page is 培训&活动 now: the same catalog holds one-off activities
+      // (兄弟团爬山), so it offers both create paths and a filter between them.
+      await page.goto(`${BASE}/trainings`, { waitUntil: 'domcontentloaded' });
+      await page.locator('.page-bar').first().waitFor({ state: 'attached', timeout: 20000 });
+      check('the catalog offers both “Add course” and “Add activity”',
+        (await page.locator('button:visible:has-text("Add course")').count()) > 0 &&
+          (await page.locator('button:visible:has-text("Add activity")').count()) > 0);
+      const activityCard = page.locator('.card h3', { hasText: fxActivity.name });
+      await activityCard.first().waitFor({ timeout: 20000 });
+      check('a created activity appears in the same catalog', (await activityCard.count()) === 1);
+      // Filtering is by the STORED code, so it survives a language switch.
+      await page.locator('.page-bar-filters select').first().selectOption('course');
+      await w(700);
+      check('“Courses only” hides the activities',
+        (await activityCard.count()) === 0 &&
+          (await page.locator('.card h3', { hasText: fxTraining.name }).count()) === 1);
+      await page.locator('.page-bar-filters select').first().selectOption('activity');
+      await w(700);
+      check('“Activities only” hides the courses',
+        (await activityCard.count()) === 1 &&
+          (await page.locator('.card h3', { hasText: fxTraining.name }).count()) === 0);
+
+      // An activity is ONE occasion: no session list to manage, and its roll
+      // call is a single column of "came".
+      await activityCard.first().click();
+      await page.waitForURL(/\/trainings\/[0-9a-f-]+/, { timeout: 15000 });
+      await page.locator('text=Attendance sheet').first().waitFor({ timeout: 20000 });
+      check('an activity has no session list to manage',
+        (await page.locator('.card-head h3:has-text("Sessions")').count()) === 0);
+      check('its roll call is one “Came” column',
+        (await page.locator('th:has-text("Came")').count()) === 1);
+      check('the person who signed up is on the roll call',
+        (await page.locator(`strong:has-text("${fxActivity.goer.name}")`).count()) > 0);
+      const activityBody = await page.locator('.content').innerText();
+      check('the page calls it an activity, not a course',
+        /Activity/.test(activityBody) && !/Edit course/.test(activityBody),
+        activityBody.replace(/\s+/g, ' ').slice(0, 120));
+      await shot('06b-activity-detail');
     } finally {
+      await fxActivity.remove();
       await fxTraining.remove();
     }
 
@@ -752,6 +1028,130 @@ async function main() {
     check('the account detail exposes an editable login email',
       (await page.locator('.card input[type=email]:not([disabled])').count()) > 0);
     await shot('08-settings');
+
+    /* -- church settings · add-on module catalog -------------------------- */
+    // 四十天守望 is an ADD-ON, not a core module: a church may not run it. The
+    // catalog on /church is where that is decided, and the thing worth
+    // asserting is that switching it off actually reaches the whole app — the
+    // nav entry goes, the page says why, and the API refuses.
+    //
+    // This writes to the church's LIVE settings, so the original state is read
+    // first and restored in the `finally` whatever happens: a failed check
+    // must never leave a module switched off for real users.
+    mod('church settings · add-on modules');
+    const moduleStatesBefore = await apiGet('/church/modules');
+    const discBefore = moduleStatesBefore.find((m) => m.key === 'discipleship');
+    // The `finally` below covers a failed check; this covers the process dying
+    // outright, which runs no `finally` at all.
+    if (discBefore) {
+      restoreLater(`the discipleship module to enabled=${discBefore.enabled}`, async () => {
+        const now = await ctx.request.get(`${BASE}/api/church/modules`).then((r) => r.json());
+        const current = now?.find?.((m) => m.key === 'discipleship');
+        if (current && current.enabled === discBefore.enabled) return;
+        const r = await ctx.request.patch(`${BASE}/api/church/modules/discipleship`, {
+          data: { enabled: discBefore.enabled },
+        });
+        if (!r.ok()) throw new Error(`restore failed: ${r.status()}`);
+      });
+    }
+    /** The row in the catalog for one module — its switch lives on it. */
+    const catalogRow = (name) => page.locator('.card .flex-between', { hasText: name });
+    try {
+      await page.goto(`${BASE}/church`, { waitUntil: 'domcontentloaded' });
+      await page.locator('button:has-text("Save church profile")').first().waitFor({ timeout: 20000 });
+      const churchBody = await page.locator('.content').innerText();
+      check('church settings shows the church profile and the module catalog',
+        churchBody.includes('Church profile') && churchBody.includes('Add-on modules'));
+      // Skip file inputs: the logo picker is an invisible <input type=file>
+      // that sits ABOVE the name field in the DOM, so "the card's first input"
+      // is the file picker and its value is always empty.
+      const churchName = page.locator('.card input:not([type=file])').first();
+      check('the church name field is filled from the record',
+        (await churchName.inputValue()) === churchRecord.name,
+        `field=${await churchName.inputValue()} record=${churchRecord.name}`);
+      check('the catalog lists the Forty Days add-on with a switch',
+        (await catalogRow('Forty Days').locator('.switch').count()) === 1);
+
+      check('the catalog reports the module’s stored state',
+        typeof discBefore?.enabled === 'boolean', JSON.stringify(discBefore));
+      // The toggle cycle starts from ON. A church that has genuinely switched
+      // it off is not a failure — say so and leave its setting alone.
+      if (!discBefore?.enabled) check('module already off — toggle cycle skipped', true);
+      if (discBefore?.enabled) {
+        // Turning one off removes a whole section for everyone, so it asks
+        // first and the message has to say what goes and what is kept (G3).
+        await catalogRow('Forty Days').locator('.switch').first().click();
+        await page.locator('.modal-backdrop').last().waitFor({ timeout: 8000 });
+        const confirmCopy = await page.locator('.modal-backdrop').last().innerText();
+        check('switching a module off asks first, and says what disappears',
+          confirmCopy.includes('Forty Days') && /sidebar/i.test(confirmCopy),
+          confirmCopy.replace(/\s+/g, ' ').slice(0, 140));
+        check('…and promises the existing pairs and progress are kept',
+          /nothing is deleted/i.test(confirmCopy) && /progress/i.test(confirmCopy),
+          confirmCopy.replace(/\s+/g, ' ').slice(0, 200));
+        await page.locator('.modal-backdrop').last().locator('button:has-text("Turn off module")').last().click();
+        await w(1500);
+
+        const offStates = await apiGet('/church/modules');
+        check('confirming stores the module as off',
+          offStates.find((m) => m.key === 'discipleship')?.enabled === false,
+          JSON.stringify(offStates));
+        // The server is the authority: the path has to stop answering, not
+        // just stop being linked (rule G2).
+        const blocked = await ctx.request.get(`${BASE}/api/discipleship/programs`);
+        check('a disabled module’s API path is refused', blocked.status() === 404, `status ${blocked.status()}`);
+
+        await page.goto(`${BASE}/members`, { waitUntil: 'domcontentloaded' });
+        await page.locator('.mtile').first().waitFor({ timeout: 20000 });
+        check('the nav loses the disabled module’s entry',
+          !(await page.locator('.sidebar').innerText()).includes('Forty Days'));
+
+        await page.goto(`${BASE}/discipleship`, { waitUntil: 'domcontentloaded' });
+        await page.locator('.empty').first().waitFor({ timeout: 20000 });
+        const offPage = await page.locator('.content').innerText();
+        check('going straight to its URL explains it is not enabled',
+          /not enabled/i.test(offPage) && !/error/i.test(offPage),
+          offPage.replace(/\s+/g, ' ').slice(0, 120));
+
+        // Back on again — turning a module ON takes nothing away, so it needs
+        // no confirmation, and the whole section has to come back.
+        await page.goto(`${BASE}/church`, { waitUntil: 'domcontentloaded' });
+        await catalogRow('Forty Days').locator('.switch').first().waitFor({ timeout: 20000 });
+        await catalogRow('Forty Days').locator('.switch').first().click();
+        await w(1500);
+        check('turning it back on needs no confirmation',
+          (await page.locator('.modal-backdrop').count()) === 0);
+        const onStates = await apiGet('/church/modules');
+        check('the module is stored as on again',
+          onStates.find((m) => m.key === 'discipleship')?.enabled === true,
+          JSON.stringify(onStates));
+        await page.goto(`${BASE}/discipleship`, { waitUntil: 'domcontentloaded' });
+        await page.locator('h1').first().waitFor({ timeout: 20000 });
+        await w(1200);
+        check('the nav entry and the page come back',
+          (await page.locator('.sidebar').innerText()).includes('Forty Days') &&
+            !/not enabled/i.test(await page.locator('.content').innerText()));
+      }
+      await shot('08a-church');
+    } finally {
+      // Belt and braces: whatever happened above, the church is left running
+      // exactly the modules it was running before this ran.
+      if (discBefore) {
+        const now = await ctx.request
+          .get(`${BASE}/api/church/modules`)
+          .then((r) => r.json())
+          .catch(() => null);
+        const current = now?.find?.((m) => m.key === 'discipleship');
+        if (!current || current.enabled !== discBefore.enabled) {
+          const restored = await ctx.request
+            .patch(`${BASE}/api/church/modules/discipleship`, { data: { enabled: discBefore.enabled } })
+            .then((r) => r.ok())
+            .catch(() => false);
+          console.log(`  ↳ cleanup: ${restored ? 'restored' : 'COULD NOT RESTORE'} the discipleship module to enabled=${discBefore.enabled}`);
+          check('the add-on module was left as it was found', restored, `enabled=${discBefore.enabled}`);
+        }
+      }
+    }
 
     /* -- my profile ------------------------------------------------------- */
     // The account block at the foot of the sidebar is a link straight to this
@@ -948,6 +1348,15 @@ async function main() {
     const me = await meRes.json();
     accountId = me.id;
     originalLanguage = me.language;
+    // Same reasoning as the module switch: the `finally` handles a failed
+    // check, this handles the process being killed mid-switch.
+    restoreLater(`the account language to ${originalLanguage}`, async () => {
+      if (!originalLanguage) return; // the run already put it back
+      const r = await ctx.request.patch(`${BASE}/api/accounts/${accountId}`, {
+        data: { language: originalLanguage },
+      });
+      if (!r.ok()) throw new Error(`restore failed: ${r.status()}`);
+    });
     check('/api/auth/me reports the account language', typeof me.language === 'string', String(me.language));
 
     const setLang = (lang) =>
@@ -1030,6 +1439,10 @@ async function main() {
     // a group outlives the member that sits on its roster.
     await sweep('cleanup');
     leftovers.length = 0;
+    // The explicit restores above already ran on this path, so drain the
+    // crash-path list without acting on it — leaving entries behind would make
+    // a later exit hand back settings that are already correct.
+    restorers.length = 0;
     // API-fallback cleanup: if the throwaway member survived, delete it.
     if (createdMemberId) {
       await ctx.request.delete(`${BASE}/api/members/${createdMemberId}`).catch(() => {});

@@ -11,6 +11,7 @@ import {
   GroupPosition,
   MemberStatus,
   PairStatus,
+  TrainingKind,
   Weekday,
   displayRole,
 } from '@tog/shared';
@@ -112,6 +113,18 @@ export const WEEKDAY_OPTIONS: Weekday[] = [
 
 export function weekdayKey(day: Weekday | string): MessageKey {
   return `weekday.${day}` as MessageKey;
+}
+
+/**
+ * The JavaScript day number (0 = Sunday) for a stored weekday.
+ *
+ * WEEKDAY_OPTIONS is already in that order, so the lookup is the list itself
+ * rather than a second table that could drift from it. An unrecognised value
+ * falls back to Sunday, which is what a group with no meeting day shows.
+ */
+export function weekdayIndex(day: Weekday | string | null): number {
+  const i = WEEKDAY_OPTIONS.indexOf(day as Weekday);
+  return i < 0 ? 0 : i;
 }
 
 /** Postgres `time` comes back as "HH:MM:SS" — trim to "HH:MM" for display. */
@@ -245,8 +258,26 @@ export function attendanceKey(status: string): MessageKey {
 }
 
 /* -------------------------------------------------------------------------
- * Trainings & enrollment
+ * 培训&活动 — the catalog, enrollment & the two shapes
  * ---------------------------------------------------------------------- */
+
+/**
+ * Message key for a `kind` (课程 / 活动). Keyed by the stored code, so the
+ * catalog's filter and the page's branches survive a language switch.
+ */
+export function trainingKindKey(kind: TrainingKind | string): MessageKey {
+  return `trainingKind.${kind}` as MessageKey;
+}
+
+/** The wording a page uses per shape: an activity never says "course". */
+export function isActivity(row: { kind?: TrainingKind | string | null } | null | undefined): boolean {
+  return row?.kind === TrainingKind.Activity;
+}
+
+/** Badge tone for a kind — so the two shapes are told apart at a glance. */
+export function trainingKindClass(kind: TrainingKind | string): string {
+  return kind === TrainingKind.Activity ? 'b-warn' : 'b-brand';
+}
 
 /**
  * Category is a free-text column, so the three seeded values are stored as the

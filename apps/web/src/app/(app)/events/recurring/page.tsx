@@ -27,6 +27,7 @@ import {
   eventTypeKey,
   formatDate,
   formatMeetingTime,
+  weekdayIndex,
   weekdayKey,
   WEEKDAY_OPTIONS,
 } from '@/lib/labels';
@@ -36,16 +37,13 @@ import { EventType, Weekday } from '@tog/shared';
 
 /** The next date this rule will land on, for the "next" column. */
 function nextOccurrence(weekday: Weekday, time: string): Date {
-  const WEEKDAY_INDEX: Record<string, number> = {
-    sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
-  };
   // All of this is Malaysia time: which day it is now, which weekday that is,
   // and what the rule's start_time means. Using the runtime's zone put the
   // Worker (UTC) a day out for anything scheduled before 08:00.
   const now = new Date();
   const p = churchParts(now);
   const todayIdx = churchDayOfWeek(now);
-  const target = WEEKDAY_INDEX[weekday] ?? 0;
+  const target = weekdayIndex(weekday);
   const [h, m] = time.split(':').map(Number);
   let day = p.day + ((target - todayIdx + 7) % 7);
   let at = churchInstant(p.year, p.month, day, h || 0, m || 0);
@@ -75,6 +73,10 @@ export default function RecurringEventsPage() {
       (rules.data ?? []).map((r) => ({
         ...r,
         next: nextOccurrence(r.weekday, r.start_time),
+        // A Sunday rule no longer produces anything: the Sunday roll call is
+        // the sheet on 崇拜与祷告会 (migration 0013), and the generator skips
+        // these. Saying so beats showing a "next" date that never arrives.
+        generates: r.weekday !== Weekday.Sunday,
       })),
     [rules.data],
   );
@@ -189,10 +191,14 @@ export default function RecurringEventsPage() {
                       </td>
                       {!hallLocked && <td className="muted">{r.hall?.name ?? t('hall.allOpen')}</td>}
                       <td className="muted">{r.location ?? '—'}</td>
-                      <td className="muted tnum">{r.active ? formatDate(r.next.toISOString()) : '—'}</td>
+                      <td className="muted tnum">{r.active && r.generates ? formatDate(r.next.toISOString()) : '—'}</td>
                       <td>
-                        <span className={`badge ${r.active ? 'b-good' : 'b-gray'}`}>
-                          {r.active ? t('common.enabled') : t('common.disabled')}
+                        <span className={`badge ${r.active && r.generates ? 'b-good' : 'b-gray'}`}>
+                          {!r.generates
+                            ? t('recurring.sundaySheet')
+                            : r.active
+                              ? t('common.enabled')
+                              : t('common.disabled')}
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
@@ -235,8 +241,12 @@ export default function RecurringEventsPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-8" style={{ flexShrink: 0 }}>
-                    <span className={`badge ${r.active ? 'b-good' : 'b-gray'}`}>
-                      {r.active ? t('common.enabled') : t('common.disabled')}
+                    <span className={`badge ${r.active && r.generates ? 'b-good' : 'b-gray'}`}>
+                      {!r.generates
+                        ? t('recurring.sundaySheet')
+                        : r.active
+                          ? t('common.enabled')
+                          : t('common.disabled')}
                     </span>
                     {perms.write && <span className="mtile-cta"><ChevronRightIcon /></span>}
                   </div>
@@ -244,7 +254,7 @@ export default function RecurringEventsPage() {
                 <div className="mtile-line">
                   {r.hall?.name ?? t('hall.allOpen')}
                   {r.location ? ` · ${r.location}` : ''}
-                  {r.active
+                  {r.active && r.generates
                     ? ` ${t('recurring.nextInline', { date: formatDate(r.next.toISOString()) })}`
                     : ''}
                 </div>
@@ -369,9 +379,14 @@ function RecurringModal({
       </div>
       <div className="form-row">
         <Field label={t('recurring.field.everyWeek')}>
+          {/* Sunday is offered but not selectable: the Sunday roll call is the
+              sheet on 崇拜与祷告会 now, so a Sunday rule would manufacture an
+              event nobody marks (the generator skips them). It stays in the
+              list, disabled, so a rule left over from before still shows its
+              own weekday instead of rendering an empty select. */}
           <select value={form.weekday} onChange={(e) => setForm({ ...form, weekday: e.target.value as Weekday })}>
             {WEEKDAY_OPTIONS.map((d) => (
-              <option key={d} value={d}>{t(weekdayKey(d))}</option>
+              <option key={d} value={d} disabled={d === Weekday.Sunday}>{t(weekdayKey(d))}</option>
             ))}
           </select>
         </Field>

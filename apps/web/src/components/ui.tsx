@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { initialOf, roleDot, roleKey, roleTagStyle } from '@/lib/labels';
 import { useHallScope } from '@/lib/hall';
-import { useT } from '@/lib/i18n';
+import { useLang, useT } from '@/lib/i18n';
 
 /* -------------------------------------------------------------------------
  * State helpers
@@ -252,6 +252,22 @@ export function ErrorBanner({ message }: { message: string | null }) {
 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
+}
+
+/**
+ * What a page owned by a switched-off add-on module shows. The nav entry is
+ * already gone, so this is what a bookmark or a pasted link lands on — a
+ * stated reason rather than a crash or a blank list. The API refuses the same
+ * paths regardless (rule G2); this is only the explanation.
+ */
+export function ModuleDisabled({ name }: { name: string }) {
+  const t = useT();
+  return (
+    <Empty>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('module.off.title', { name })}</div>
+      <div style={{ fontSize: 13 }}>{t('module.off.body')}</div>
+    </Empty>
+  );
 }
 
 /* -------------------------------------------------------------------------
@@ -750,6 +766,158 @@ export function TagsInput({
         </datalist>
       )}
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Attendance sheets
+ *
+ * Two pages draw a roll-call grid — the 主日点名 sheet on /events and a life
+ * group's weekly sheet on /groups/[id]. Their shapes genuinely differ (one
+ * column per Sunday split in two, versus one column per meeting), so they are
+ * not one component; but the pieces they DO share live here rather than being
+ * typed out twice (rule G4).
+ * ---------------------------------------------------------------------- */
+
+/**
+ * The year + month pair a sheet is read by. Month names follow the interface
+ * language instead of a hardcoded list, and are formatted in UTC so the label
+ * cannot slide a month under a different `TZ` (rule G6a).
+ *
+ * `years` lets a caller widen the list beyond "this year and last" — a sheet
+ * that already holds records for 2023 has to be able to show them.
+ */
+export function MonthPicker({
+  year,
+  month,
+  years,
+  onChange,
+}: {
+  year: number;
+  month: number;
+  years?: number[];
+  onChange: (next: { year: number; month: number }) => void;
+}) {
+  const lang = useLang();
+  const t = useT();
+  const options = [...new Set([...(years ?? []), year])].sort((a, b) => b - a);
+  const monthName = (m: number) =>
+    new Intl.DateTimeFormat(lang, { month: 'long', timeZone: 'UTC' }).format(
+      new Date(Date.UTC(2000, m - 1, 1)),
+    );
+  return (
+    <>
+      <select
+        value={year}
+        onChange={(e) => onChange({ year: Number(e.target.value), month })}
+        title={t('sheet.year')}
+        aria-label={t('sheet.year')}
+        style={{ width: 'auto' }}
+      >
+        {options.map((y) => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
+      <select
+        value={month}
+        onChange={(e) => onChange({ year, month: Number(e.target.value) })}
+        title={t('sheet.month')}
+        aria-label={t('sheet.month')}
+        style={{ width: 'auto' }}
+      >
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => (
+          <option key={mo} value={mo}>{monthName(mo)}</option>
+        ))}
+      </select>
+    </>
+  );
+}
+
+/**
+ * One option of a `<Segmented />`. `tone` is an optional active class
+ * (`on-good` / `on-warn` / `on-crit`) for a picker whose choices carry a
+ * meaning; a plain tab strip leaves it out and gets the neutral `on`.
+ */
+export type SegmentedOption<T extends string> = {
+  value: T;
+  label: string;
+  tone?: 'on-good' | 'on-warn' | 'on-crit';
+};
+
+/**
+ * The one segmented control (rule G4). Used for a card's own tabs — the life
+ * group's 小组 / 会前 / 主日 roll-call switch — and for the per-member
+ * 出席 / 请假 / 缺席 picker in a roll call, which is the same row of mutually
+ * exclusive buttons with a tone per option.
+ *
+ * Keyed by the STORED code, never by a label (rule G8): `value` is compared
+ * against `option.value`, so switching interface language cannot change which
+ * segment reads as selected.
+ */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+  block,
+  tabs,
+}: {
+  /** The selected code; null / undefined = nothing chosen yet. */
+  value: T | null | undefined;
+  options: readonly SegmentedOption<T>[];
+  onChange: (value: T) => void;
+  /** Accessible name for the group — what these segments choose between. */
+  label: string;
+  /** Stretch to the full width of the row. */
+  block?: boolean;
+  /** Full `--control-h`, for a strip that sits beside selects in a filter row. */
+  tabs?: boolean;
+}) {
+  return (
+    <div className={`seg${tabs ? ' tabs' : ''}${block ? ' block' : ''}`} role="group" aria-label={label}>
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            className={active ? o.tone ?? 'on' : ''}
+            aria-pressed={active}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * One tick on a sheet. A read-only account sees the state and cannot change it
+ * — the server refuses the write regardless, this is the UI's half (rule G2).
+ */
+export function SheetTick({
+  checked,
+  onToggle,
+  disabled,
+  title,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  title: string;
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={onToggle}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      style={{ width: 18, height: 18, cursor: disabled ? 'default' : 'pointer', accentColor: 'var(--brand)' }}
+    />
   );
 }
 

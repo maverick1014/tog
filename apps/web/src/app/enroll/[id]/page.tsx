@@ -5,16 +5,25 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Field } from '@/components/ui';
-import { trainingCategoryLabel } from '@/lib/labels';
+import { useChurchProfile } from '@/lib/church';
+import { formatDate, trainingCategoryLabel, trainingKindKey } from '@/lib/labels';
 import { useT } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/i18n';
+import { TrainingKind } from '@tog/shared';
 
+/**
+ * What the public endpoint hands back. `kind` and `starts_on` ride along so an
+ * ACTIVITY reads as one ("Activity on 2026-09-12") instead of claiming to have
+ * "1 sessions" — the same link, the same name match, different wording.
+ */
 interface EnrollTraining {
   id: string;
   name: string;
   category: string | null;
+  kind: TrainingKind;
   is_enrollable: boolean;
   total_sessions: number;
+  starts_on: string | null;
 }
 
 type EnrollStatus = 'ok' | 'already' | 'no_member' | 'ambiguous' | 'closed';
@@ -35,7 +44,9 @@ const RESULT: Record<
 export default function EnrollFormPage() {
   const { id } = useParams<{ id: string }>();
   // Public link — no session, so this renders in the app default language.
+  // The church's name is data, not a translation: it comes off the record.
   const t = useT();
+  const church = useChurchProfile();
   const [training, setTraining] = useState<EnrollTraining | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +87,7 @@ export default function EnrollFormPage() {
       <div className="flex-between" style={{ padding: '15px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 2 }}>
         <div className="flex items-center gap-10 serif" style={{ fontWeight: 600, fontSize: 15 }}>
           <span style={{ width: 30, height: 30, borderRadius: 8, background: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.06)' }}>
-            <BrandLogo size={26} />
+            <BrandLogo size={26} church={church} />
           </span>
           {t('enroll.header')}
         </div>
@@ -106,13 +117,18 @@ export default function EnrollFormPage() {
           ) : (
             <>
               <div className="flex items-center gap-8 flex-wrap" style={{ marginBottom: 4 }}>
+                {training?.kind && (
+                  <span className="badge b-brand">{t(trainingKindKey(training.kind))}</span>
+                )}
                 {training?.category && (
                   <span className="badge b-accent">{trainingCategoryLabel(training.category, t)}</span>
                 )}
                 <strong className="serif" style={{ fontSize: 17 }}>{training?.name}</strong>
               </div>
               <div className="muted" style={{ fontSize: 12.5, marginBottom: 4 }}>
-                {t('enroll.sessionsLine', { n: training?.total_sessions ?? 0 })}
+                {training?.kind === TrainingKind.Activity
+                  ? t('enroll.activityLine', { date: formatDate(training.starts_on) })
+                  : t('enroll.sessionsLine', { n: training?.total_sessions ?? 0 })}
               </div>
 
               {training && !training.is_enrollable ? (
@@ -139,7 +155,7 @@ export default function EnrollFormPage() {
           )}
         </div>
         <div className="faint" style={{ marginTop: 18, fontSize: 12, textAlign: 'center', maxWidth: 460 }}>
-          Tabernacle of Grace
+          {church?.name ?? ''}
         </div>
       </div>
     </div>

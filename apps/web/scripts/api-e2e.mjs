@@ -141,6 +141,9 @@ async function main() {
     ok('delete event → 200', (await req('DELETE', `/api/events/${evId}`, H)).status === 200);
   }
 
+  // ---- 主日点名 (the Sunday sheet) -----------------------------------------
+  await sundaySheet(admin, halls, hallId);
+
   // ---- Recurring events (循环聚会) ------------------------------------------
   const rules = (await req('GET', '/api/recurring-events', H)).json;
   ok('recurring-events is an array', Array.isArray(rules), JSON.stringify(rules).slice(0, 120));
@@ -187,6 +190,7 @@ async function main() {
 
   // ---- Trainings CRUD (+ session, enroll, attendance) ---------------------
   const mkTr = await req('POST', '/api/trainings', { ...H, body: { name: `E2E课程-${Date.now()}`, total_sessions: 1, is_enrollable: true } });
+  ok('a training defaults to the course shape', mkTr.json?.kind === 'course', String(mkTr.json?.kind));
   ok('create training → 200 + id', mkTr.status === 200 && mkTr.json?.id, `status ${mkTr.status} ${JSON.stringify(mkTr.json).slice(0,120)}`);
   const trId = mkTr.json?.id;
   if (trId) {
@@ -208,6 +212,9 @@ async function main() {
     }
     ok('delete training → 200', (await req('DELETE', `/api/trainings/${trId}`, H)).status === 200);
   }
+
+  // ---- 培训&活动: the ACTIVITY shape --------------------------------------
+  await activityShape(admin, members, hallId);
 
   // ---- Discipleship module CRUD + pair CRUD + public form ------------------
   // 守望模块 (discipleship_programs) are creatable from the UI now, so this
@@ -255,6 +262,9 @@ async function main() {
     ok('the church’s own modules survive', Array.isArray(after) && (programsBefore || []).every((p) => after.some((q) => q.id === p.id)));
   }
 
+  // ---- Church record + add-on modules -------------------------------------
+  await churchAndModules(admin);
+
   // ---- Accounts CRUD + password (super_admin) -----------------------------
   if (freeMembers.length) {
     // An account's login email is always derived server-side from its linked
@@ -292,6 +302,293 @@ function memberOrNull(members) {
   return members && members.length ? members[0] : null;
 }
 
+/**
+ * 培训&活动 — the second shape in the same catalog (`kind`, migration 0014).
+ *
+ * An activity is one occasion people sign up for and get ticked off at. What
+ * has teeth here is that the SERVER owns the invariants, not the page:
+ *  - it creates the activity's single session itself, so the attendance sheet
+ *    always has exactly one column to tick;
+ *  - `total_sessions` is forced to 1 however many the client asked for;
+ *  - a `kind` the app does not ship is a 400 in words, not a constraint name.
+ * The public sign-up link has to keep working for an activity too — same link,
+ * same full-name match, different wording — so it is exercised here as well.
+ */
+async function activityShape(adminCookie, members, hallId) {
+  const H = { cookie: adminCookie };
+  const mk = await req('POST', '/api/trainings', {
+    ...H,
+    body: {
+      name: `E2E活动-${Date.now()}`,
+      kind: 'activity',
+      // Deliberately wrong: an activity is ONE occasion whatever is sent.
+      total_sessions: 5,
+      is_enrollable: true,
+      starts_on: '2030-03-09',
+      ends_on: '2030-03-09',
+      hall_id: hallId,
+    },
+  });
+  ok('create activity → 200 + id', mk.status === 200 && mk.json?.id, `status ${mk.status} ${JSON.stringify(mk.json).slice(0, 140)}`);
+  const id = mk.json?.id;
+  if (!id) return;
+  try {
+    ok('the activity keeps its kind', mk.json?.kind === 'activity', String(mk.json?.kind));
+    ok('an activity is one occasion, whatever total_sessions was sent',
+      mk.json?.total_sessions === 1, String(mk.json?.total_sessions));
+
+    const detail = await req('GET', `/api/trainings/${id}`, H);
+    ok('the API gives the activity its single session to tick',
+      detail.status === 200 && (detail.json?.sessions || []).length === 1,
+      `${(detail.json?.sessions || []).length} sessions`);
+
+    // Sign up + tick who came, over the same paths a course uses.
+    const sessionId = detail.json?.sessions?.[0]?.id;
+    if (members?.length && sessionId) {
+      const enr = await req('POST', `/api/trainings/${id}/enroll`, { ...H, body: { member_id: members[0].id, status: 'approved' } });
+      ok('sign a member up for the activity → 200', enr.status === 200 && enr.json?.id, `status ${enr.status}`);
+      const att = await req('POST', `/api/trainings/sessions/${sessionId}/attendance`, {
+        ...H, body: { records: [{ member_id: members[0].id, attended: true }] },
+      });
+      ok('tick who came → 200', att.status === 200, `status ${att.status}`);
+      const nl = await req('GET', `/api/trainings/${id}/namelist`, H);
+      ok('the activity roll call has one column and the tick is on it',
+        (nl.json?.sessions || []).length === 1 &&
+          (nl.json?.rows || []).some((r) => r.attendance?.[0]?.attended === true),
+        JSON.stringify(nl.json?.rows || []).slice(0, 140));
+    }
+
+    // The public link makes sense for an activity: it says which shape it is
+    // and when it happens, rather than claiming "1 sessions".
+    const pub = await req('GET', `/api/trainings/enroll/${id}`);
+    ok('public sign-up info for an activity → 200 + kind + date',
+      pub.status === 200 && pub.json?.kind === 'activity' && String(pub.json?.starts_on).startsWith('2030-03-09'),
+      JSON.stringify(pub.json));
+    const badName = await req('POST', `/api/trainings/enroll/${id}`, { body: { full_name: `查无此人-${Date.now()}` } });
+    ok('public sign-up still matches on a full name', badName.json?.status === 'no_member', JSON.stringify(badName.json));
+
+    // A shape the app does not ship never reaches the table.
+    const junk = await req('PATCH', `/api/trainings/${id}`, { ...H, body: { kind: 'workshop' } });
+    ok('an unknown kind → 400', junk.status === 400, `status ${junk.status}`);
+    ok('…and says which kinds there are', /course/i.test(junk.json?.message || ''), String(junk.json?.message));
+    const unchanged = await req('GET', `/api/trainings/${id}`, H);
+    ok('the rejected kind was not stored', unchanged.json?.kind === 'activity', String(unchanged.json?.kind));
+  } finally {
+    const del = await req('DELETE', `/api/trainings/${id}`, H);
+    ok('the activity fixture was deleted', del.status === 200, `status ${del.status}`);
+  }
+}
+
+/**
+ * 主日点名 — the Sunday sheet (migration 0013).
+ *
+ * Every Sunday simply exists, so there is nothing to create: the sheet's
+ * columns come from the calendar and a cell is written straight onto
+ * (congregation, Sunday, member). Three properties have teeth here:
+ *  - a cleared cell leaves NO row behind ("not recorded" and "all false" must
+ *    not be two spellings of the same fact — the table forbids the second);
+ *  - a date that is not a Sunday is refused in words, not as a constraint name;
+ *  - an unnarrowed read is refused rather than merging congregations, which is
+ *    exactly the joint-service idea this model removes.
+ *
+ * It works on a member it CREATES, in a far-future month, and deletes it in a
+ * `finally`: this runs against the church's live database, so it must never
+ * write into — or clear — a real Sunday's roll call. Deleting the member takes
+ * its sheet rows with it (FK cascade).
+ */
+async function sundaySheet(adminCookie, halls, hallId) {
+  const H = { cookie: adminCookie };
+  if (!hallId) { ok('sunday sheet (skipped: no congregation)', true); return; }
+
+  // A Sunday far outside anything the church has recorded, so a leaked row
+  // could never be mistaken for real attendance. 2030-01-06 is a Sunday.
+  const SUNDAY = '2030-01-06';
+  const MONDAY = '2030-01-07';
+  const sheetUrl = (extra = '') => `/api/attendance/sundays?hall_id=${hallId}&year=2030&month=1${extra}`;
+
+  const mk = await req('POST', '/api/members', {
+    ...H,
+    body: { full_name: `E2E主日-${Date.now()}`, church_role: 'member', status: 'active', hall_id: hallId },
+  });
+  ok('sheet fixture member created', mk.status === 200 && mk.json?.id, `status ${mk.status}`);
+  const memberId = mk.json?.id;
+  if (!memberId) return;
+
+  /** That member's row on the sheet, or undefined if it is not on it. */
+  const readRow = async () => {
+    const r = await req('GET', sheetUrl(), H);
+    return { res: r, row: (r.json?.rows || []).find((x) => x.member?.id === memberId) };
+  };
+
+  try {
+    const first = await readRow();
+    ok('sunday sheet GET → 200', first.res.status === 200, `status ${first.res.status} ${JSON.stringify(first.res.json).slice(0, 120)}`);
+    ok('the sheet names exactly one congregation', first.res.json?.hall_id === hallId, String(first.res.json?.hall_id));
+    ok('the columns are that month’s Sundays, from the calendar',
+      JSON.stringify(first.res.json?.dates) ===
+        JSON.stringify(['2030-01-06', '2030-01-13', '2030-01-20', '2030-01-27']),
+      JSON.stringify(first.res.json?.dates));
+    ok('the congregation’s active members are the rows', !!first.row, `${(first.res.json?.rows || []).length} rows`);
+    ok('a Sunday nobody was marked on carries no cell', first.row && !first.row.cells?.[SUNDAY],
+      JSON.stringify(first.row?.cells));
+
+    // Tick 会前 only, then both — a cell is written by one call whether or not
+    // it already existed.
+    const tick = await req('PUT', '/api/attendance/sundays', {
+      ...H,
+      body: { hall_id: hallId, service_date: SUNDAY, member_id: memberId, pre_service: true, service: false },
+    });
+    ok('ticking 会前 → 200', tick.status === 200 && tick.json?.pre_service === true && tick.json?.service === false,
+      `status ${tick.status} ${JSON.stringify(tick.json)}`);
+    const afterTick = await readRow();
+    ok('the tick shows up on the sheet',
+      afterTick.row?.cells?.[SUNDAY]?.pre_service === true && afterTick.row?.cells?.[SUNDAY]?.service === false,
+      JSON.stringify(afterTick.row?.cells));
+
+    const both = await req('PUT', '/api/attendance/sundays', {
+      ...H,
+      body: { hall_id: hallId, service_date: SUNDAY, member_id: memberId, pre_service: true, service: true },
+    });
+    ok('ticking the same cell again updates it rather than duplicating',
+      both.status === 200 && both.json?.service === true, `status ${both.status} ${JSON.stringify(both.json)}`);
+
+    // Untick both → the row must be GONE, not stored as two falses.
+    const clear = await req('PUT', '/api/attendance/sundays', {
+      ...H,
+      body: { hall_id: hallId, service_date: SUNDAY, member_id: memberId, pre_service: false, service: false },
+    });
+    ok('unticking both → 200', clear.status === 200, `status ${clear.status} ${JSON.stringify(clear.json)}`);
+    const afterClear = await readRow();
+    ok('a cleared cell leaves no row behind', afterClear.row && !afterClear.row.cells?.[SUNDAY],
+      JSON.stringify(afterClear.row?.cells));
+
+    // A date that is not a Sunday is refused in words.
+    const badDay = await req('PUT', '/api/attendance/sundays', {
+      ...H,
+      body: { hall_id: hallId, service_date: MONDAY, member_id: memberId, pre_service: true, service: false },
+    });
+    ok('a date that is not a Sunday → 400', badDay.status === 400, `status ${badDay.status}`);
+    ok('…and says so in words, not as a constraint name',
+      /not a Sunday/i.test(badDay.json?.message || ''), String(badDay.json?.message));
+
+    // Missing pieces are refused too, rather than writing a half row.
+    const noDate = await req('PUT', '/api/attendance/sundays', {
+      ...H, body: { hall_id: hallId, member_id: memberId, pre_service: true },
+    });
+    ok('a write with no service_date → 400', noDate.status === 400, `status ${noDate.status}`);
+
+    // A sheet is always ONE congregation: an unnarrowed read is refused rather
+    // than merging them. (With a single-congregation church there is nothing
+    // ambiguous to refuse, so that case is skipped.)
+    if ((halls || []).length > 1) {
+      const merged = await req('GET', '/api/attendance/sundays?year=2030&month=1', H);
+      ok('an all-congregations sheet read → 400', merged.status === 400, `status ${merged.status}`);
+      ok('…and explains that a sheet is one congregation',
+        /congregation/i.test(merged.json?.message || ''), String(merged.json?.message));
+    } else {
+      ok('all-congregations refusal (skipped: one congregation)', true);
+    }
+  } finally {
+    // Deleting the member cascades to every sheet row it left behind.
+    const del = await req('DELETE', `/api/members/${memberId}`, H);
+    ok('the Sunday-sheet fixture member was deleted', del.status === 200, `status ${del.status}`);
+  }
+}
+
+/**
+ * The church record and the add-on module catalog (migration 0012).
+ *
+ * Three properties, and one of them has teeth: switching a module off must
+ * make the SERVER refuse its paths, not merely hide the nav entry (rule G2).
+ * Proving that means turning 四十天守望 off on the live site for a moment, so
+ * everything here is restored in a `finally` — the original module state, the
+ * original description, whether the assertions passed or blew up.
+ */
+async function churchAndModules(adminCookie) {
+  const H = { cookie: adminCookie };
+
+  // Public: the login card and both public forms render the church's name
+  // before anyone has signed in.
+  const pub = await req('GET', '/api/church');
+  ok('church profile is public (no auth) → 200', pub.status === 200, `status ${pub.status}`);
+  ok('public church profile carries a name', typeof pub.json?.name === 'string' && pub.json.name.length > 0, JSON.stringify(pub.json).slice(0, 120));
+  // …and only the four public fields — no id, no timestamps.
+  ok('public church profile exposes nothing else',
+    pub.json && Object.keys(pub.json).sort().join(',') === 'description,logo_url,name,short_name',
+    Object.keys(pub.json ?? {}).join(','));
+
+  // Writing it is not public, and not for every role either (the role matrix
+  // below checks coworker/readonly with a real session).
+  ok('unauth PATCH church → 401', (await req('PATCH', '/api/church', { body: { name: 'nope' } })).status === 401);
+
+  const states = await req('GET', '/api/church/modules', H);
+  ok('module catalog → 200 + array', states.status === 200 && Array.isArray(states.json), `status ${states.status}`);
+  const original = (states.json || []).find((m) => m.key === 'discipleship');
+  ok('the catalog lists the Forty Days add-on', !!original, JSON.stringify(states.json).slice(0, 120));
+
+  // A key that is not in the code registry must never reach the table.
+  const junk = await req('PATCH', '/api/church/modules/not_a_module', { ...H, body: { enabled: false } });
+  ok('unknown module key → 400', junk.status === 400, `status ${junk.status} ${JSON.stringify(junk.json)}`);
+  const junkGone = await req('GET', '/api/church/modules', H);
+  ok('the rejected key was not stored', !(junkGone.json || []).some((m) => m.key === 'not_a_module'));
+
+  // Non-boolean bodies are refused too, so `enabled` can never end up as a
+  // string that reads truthy forever.
+  const badBody = await req('PATCH', '/api/church/modules/discipleship', { ...H, body: { enabled: 'yes' } });
+  ok('non-boolean enabled → 400', badBody.status === 400, `status ${badBody.status}`);
+
+  // Church profile round-trip, restored below.
+  const originalDescription = pub.json?.description ?? null;
+  const marker = `api-e2e ${Date.now()}`;
+  try {
+    const patched = await req('PATCH', '/api/church', { ...H, body: { description: marker } });
+    ok('super_admin PATCH church → 200 + saved', patched.status === 200 && patched.json?.description === marker, `status ${patched.status}`);
+    const readBack = await req('GET', '/api/church');
+    ok('the church description round-trips through the public GET', readBack.json?.description === marker, String(readBack.json?.description));
+    // A field that is not on the allow-list is refused rather than dropped.
+    const sneaky = await req('PATCH', '/api/church', { ...H, body: { id: '00000000-0000-0000-0000-000000000000' } });
+    ok('church PATCH refuses an unknown field → 403', sneaky.status === 403, `status ${sneaky.status}`);
+    ok('church name cannot be blanked → 400', (await req('PATCH', '/api/church', { ...H, body: { name: '   ' } })).status === 400);
+
+    // ---- the gate: a disabled module's paths must stop answering ----------
+    if (original) {
+      const off = await req('PATCH', '/api/church/modules/discipleship', { ...H, body: { enabled: false } });
+      ok('disable module → 200 + enabled:false', off.status === 200 && off.json?.enabled === false, `status ${off.status} ${JSON.stringify(off.json)}`);
+      const blocked = await req('GET', '/api/discipleship/programs', H);
+      ok('a disabled module refuses its own API path → 404', blocked.status === 404, `status ${blocked.status}`);
+      const blockedPair = await req('GET', '/api/discipleship/pairs', H);
+      ok('every path the module owns is refused, not just the first → 404', blockedPair.status === 404, `status ${blockedPair.status}`);
+      // The PUBLIC mentor form belongs to the module too, so it closes with it.
+      const blockedForm = await req('GET', '/api/discipleship/form/whatever');
+      ok('the public mentor form closes with the module → 404', blockedForm.status === 404, `status ${blockedForm.status}`);
+      // …and nothing else moved: core paths and the catalog itself stay up.
+      ok('core paths are untouched while a module is off', (await req('GET', '/api/members', H)).status === 200);
+      ok('the church profile stays public while a module is off', (await req('GET', '/api/church')).status === 200);
+      ok('the catalog itself is still readable while a module is off', (await req('GET', '/api/church/modules', H)).status === 200);
+    }
+  } finally {
+    // This runs against the church's live site: put both back exactly as they
+    // were, whatever happened above, and SAY whether it worked.
+    if (original) {
+      const back = await req('PATCH', `/api/church/modules/discipleship`, { ...H, body: { enabled: original.enabled } });
+      ok('the module was restored to its original state',
+        back.status === 200 && back.json?.enabled === original.enabled,
+        `status ${back.status} ${JSON.stringify(back.json)}`);
+      if (original.enabled)
+        ok('the module answers again after being re-enabled', (await req('GET', '/api/discipleship/programs', H)).status === 200);
+    }
+    const restored = await req('PATCH', '/api/church', { ...H, body: { description: originalDescription } });
+    ok('the church description was restored',
+      restored.status === 200 && (restored.json?.description ?? null) === originalDescription,
+      `status ${restored.status} ${String(restored.json?.description)}`);
+  }
+}
+
+/** Was this address minted by `provision` below rather than by the church? */
+const generatedEmail = (v) => /^e2e-(readonly|coworker|admin|super_admin)-\d+-\d+@grace\.org$/i.test(String(v ?? ''));
+/** Was this the phone `selfProfileMatrix` writes (012- plus seven digits)? */
+const generatedPhone = (v) => /^012-\d{7}$/.test(String(v ?? ''));
+
 async function roleMatrix(freeMembers, hallId) {
   if (freeMembers.length < 2) { ok('role-matrix (skipped: need 2 free members)', true); return; }
   const admin = await login(EMAIL, PASSWORD);
@@ -299,10 +596,27 @@ async function roleMatrix(freeMembers, hallId) {
   const made = [];
   const originalEmails = new Map();
   const originalPhones = new Map();
+  // A hard exit runs no `finally`. This block writes to real members and
+  // creates real login accounts, so the process-level handlers get the same
+  // undo — otherwise a crash here is what leaves an e2e address on someone's
+  // profile and a stray account in 用户管理.
+  const bail = async (why, err) => {
+    if (err) console.error(`API E2E ${why}:`, err);
+    await restoreRoleMatrix(H, made, originalEmails, originalPhones).catch(() => {});
+    process.exit(1);
+  };
+  process.on('uncaughtException', (e) => void bail('uncaught exception', e));
+  process.on('unhandledRejection', (e) => void bail('unhandled rejection', e));
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => void bail(sig));
   const provision = async (role, member) => {
     const email = `e2e-${role}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@grace.org`;
-    if (!originalEmails.has(member.id)) originalEmails.set(member.id, member.email ?? null);
-    if (!originalPhones.has(member.id)) originalPhones.set(member.id, member.phone ?? null);
+    // Never adopt this script's own leftovers as "the original". A run that
+    // died before its restore leaves an e2e address on a real member; the next
+    // run would then record THAT as the value to put back, and the church's
+    // member list keeps a fake email for ever. Same for the generated phone.
+    // (It happened: four members were carrying e2e addresses before this.)
+    if (!originalEmails.has(member.id)) originalEmails.set(member.id, generatedEmail(member.email) ? null : member.email ?? null);
+    if (!originalPhones.has(member.id)) originalPhones.set(member.id, generatedPhone(member.phone) ? null : member.phone ?? null);
     await req('PATCH', `/api/members/${member.id}`, { ...H, body: { email } });
     const r = await req('POST', '/api/accounts', { ...H, body: { member_id: member.id, account_role: role, password: 'e2ePass2026' } });
     if (r.json?.id) made.push(r.json.id);
@@ -319,6 +633,19 @@ async function roleMatrix(freeMembers, hallId) {
       ok('readonly GET members → 200', (await req('GET', '/api/members', RH)).status === 200);
       ok('readonly POST members → 403', (await req('POST', '/api/members', { ...RH, body: { full_name: 'x', church_role: 'member', status: 'active' } })).status === 403);
       ok('readonly GET accounts → 403', (await req('GET', '/api/accounts', RH)).status === 403);
+      // The Sunday sheet writes with PUT — a verb the gate had never seen
+      // before 0013, so prove it is refused for a read-only account too, and
+      // that the refusal happens before anything is written.
+      if (hallId) {
+        ok('readonly GET sunday sheet → 200',
+          (await req('GET', `/api/attendance/sundays?hall_id=${hallId}&year=2030&month=1`, RH)).status === 200);
+        ok('readonly PUT sunday sheet → 403',
+          (await req('PUT', '/api/attendance/sundays', {
+            ...RH,
+            body: { hall_id: hallId, service_date: '2030-01-06', member_id: freeMembers[0].id, pre_service: true, service: true },
+          })).status === 403);
+      }
+      await churchRoleMatrix('readonly', RH);
       await selfProfileMatrix('readonly', RH, ro, co.id);
     }
     ok('coworker can login', !!co.cookie);
@@ -331,13 +658,49 @@ async function roleMatrix(freeMembers, hallId) {
         await req('DELETE', `/api/members/${mk.json.id}`, H); // cleanup as super_admin
       }
       ok('coworker GET accounts → 403', (await req('GET', '/api/accounts', CH)).status === 403);
+      await churchRoleMatrix('coworker', CH);
       await selfProfileMatrix('coworker', CH, co, ro.id);
     }
   } finally {
-    for (const id of made) await req('DELETE', `/api/accounts/${id}`, H);
-    for (const [id, email] of originalEmails) await req('PATCH', `/api/members/${id}`, { ...H, body: { email } });
-    for (const [id, phone] of originalPhones) await req('PATCH', `/api/members/${id}`, { ...H, body: { phone } });
+    await restoreRoleMatrix(H, made, originalEmails, originalPhones);
   }
+}
+
+/**
+ * Put the church's own records back. Kept out of the `finally` so the crash
+ * handler can call the same thing: a hard exit runs no `finally`, and what this
+ * undoes is not a throwaway fixture — it is two real members' email and phone,
+ * and two login accounts on the live site.
+ */
+async function restoreRoleMatrix(H, made, originalEmails, originalPhones) {
+  for (const id of made.splice(0)) await req('DELETE', `/api/accounts/${id}`, H).catch(() => {});
+  for (const [id, email] of originalEmails) await req('PATCH', `/api/members/${id}`, { ...H, body: { email } }).catch(() => {});
+  originalEmails.clear();
+  for (const [id, phone] of originalPhones) await req('PATCH', `/api/members/${id}`, { ...H, body: { phone } }).catch(() => {});
+  originalPhones.clear();
+}
+
+/**
+ * Church settings are readable by everyone signed in — the shell renders the
+ * name, and the nav needs to know which modules exist — but only a super admin
+ * may change either the record or a module's state. A role that could switch
+ * 四十天守望 off for the whole church would be a far bigger hole than one that
+ * could edit a member.
+ */
+async function churchRoleMatrix(role, RH) {
+  ok(`${role} GET church → 200`, (await req('GET', '/api/church', RH)).status === 200);
+  const before = await req('GET', '/api/church/modules', RH);
+  ok(`${role} GET module catalog → 200`, before.status === 200, `status ${before.status}`);
+  const wasEnabled = (before.json || []).find((m) => m.key === 'discipleship')?.enabled;
+  const rename = await req('PATCH', '/api/church', { ...RH, body: { name: `hijacked-${Date.now()}` } });
+  ok(`${role} PATCH church → 403`, rename.status === 403, `status ${rename.status}`);
+  const toggle = await req('PATCH', '/api/church/modules/discipleship', { ...RH, body: { enabled: !wasEnabled } });
+  ok(`${role} cannot switch a module off → 403`, toggle.status === 403, `status ${toggle.status}`);
+  // A refusal that silently wrote would be worse than a 200 — read it back.
+  const after = await req('GET', '/api/church/modules', RH);
+  ok(`${role} left the module catalog untouched`,
+    (after.json || []).find((m) => m.key === 'discipleship')?.enabled === wasEnabled,
+    JSON.stringify(after.json).slice(0, 120));
 }
 
 /**

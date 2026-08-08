@@ -7,6 +7,47 @@ theme only; mobile-first. The API is a single catch-all route handler at
 `apps/web/src/app/api/[...path]/route.ts`; auth is a signed HMAC cookie
 (`lib/server/auth.ts`).
 
+The church itself is **data**, not a hardcoded string: one `church` row
+(name / short name / description / logo) drives the sidebar brand, the login
+card and the public forms, and `church_modules` records which **add-on
+modules** this church runs. Both are edited on `/church` (教会设置,
+super_admin only). The catalog of what is switchable lives in code —
+`OPTIONAL_MODULES` in `packages/shared` — where each entry names its key, the
+nav href it owns and the API prefixes it owns; today the one entry is
+`discipleship` (四十天守望). Core surfaces are not switchable and are not in
+the registry.
+
+**培训 became 培训&活动 (Trainings & Activities).** Everything that is neither a
+Sunday nor a hand-added meeting lives on `/trainings` now — a brothers' hike, a
+sisters' baking afternoon — because an activity is exactly what sign-ups plus a
+roll call already are. One column tells the two shapes apart: `trainings.kind`
+(`course` | `activity`, migration 0014). A **course** runs over several
+sessions; an **activity** is ONE occasion, whose single `training_sessions` row
+is created by the API with it and exists only to give the roll call its one
+column to tick — its date is the record's own `starts_on`/`ends_on` (the same
+day twice), so there is no second place a date can be edited. The public
+self-sign-up link (`/enroll/[id]`, matching a full name) serves both.
+
+**Attendance is two different shapes, on purpose.** A Sunday is not an event:
+every Sunday simply happens, so `/events` (崇拜与祷告会) opens on a **sheet** —
+`sunday_attendance`, one row per (堂会, Sunday, member) carrying the two ticks
+a Sunday has, 会前 and 主日 (migration 0013). Its columns come from the
+calendar, so nothing creates a Sunday and a Sunday nobody marked has no rows at
+all. **A sheet is always one congregation** — each hall rolls its own call even
+on a joint week, so there is no 联合聚会 concept left and an all-congregations
+read is a 400, never a merge. The `events` table is now only for the meetings
+someone genuinely adds by hand (an occasional Wednesday prayer meeting: a name,
+a date, a hall), which keep the old 出席/请假/缺席 roll call. Nothing
+manufactures a 主日崇拜 row any more — 循环聚会 still tops the calendar up for
+weeknight rules and skips Sunday ones. A **life group's** roll-call card
+(`/groups/[id]`) switches between the three with a segmented control, default
+小组: 小组 is its own meetings, while 会前 and 主日 are that group's members read
+off **their congregation's** Sunday sheet — the same rows and the same
+`PUT /api/attendance/sundays` the services page writes, so a tick in either
+place is one fact ("只要有主日那就有会前" therefore needs no extra storage). A
+group belongs to one hall, so those tabs name that hall rather than following
+the congregation switcher.
+
 Run before every push: `npm run --workspace @tog/web -s build` (or in
 `apps/web`: `npx tsc --noEmit && npm test && npm run build`). Deploys are gated
 on unit tests + a post-deploy smoke test (`.github/workflows/deploy.yml`).
@@ -17,9 +58,14 @@ Testing layers (in `apps/web`):
   matrix, full CRUD, public form).
 - `npm run test:ui-e2e` — **browser UI end-to-end**: drives the real site in
   Chromium and asserts each interaction's expected outcome (login, search,
-  filters, modals, weekly attendance, discipleship day-notes, an
-  interface-language round-trip, a 守望模块 create→edit→delete cycle, a
-  create→delete member write-cycle). It restores anything it changes. It runs a tiny in-process reverse proxy so the browser
+  filters, modals, weekly attendance, a 主日点名 tick→untick round-trip,
+  discipleship day-notes, the life-group card's 小组/会前/主日 tabs writing the
+  congregation's Sunday sheet, a 培训&活动 course/activity filter plus an
+  activity's single-column roll call, an interface-language round-trip, a
+  守望模块 create→edit→delete cycle, an add-on module off→on cycle on 教会设置,
+  a create→delete member write-cycle).
+  It restores anything it changes — including the module states, which it
+  reads first and puts back in a `finally`. It runs a tiny in-process reverse proxy so the browser
   works even behind an egress proxy. `UI_E2E_PASSWORD` is required (never
   hardcode a real password); `UI_E2E_URL` / `UI_E2E_EMAIL` are optional. In this
   sandbox run it as:
@@ -53,12 +99,28 @@ These are hard requirements for this codebase. A change that breaks one is a
 review finding, not a preference. Cite the rule number in the finding.
 
 ### G1 — CRUD completeness on every management page
-Every entity page (成员、小组、聚会、培训、四十天守望模块与配对、账户) must offer
+Every entity page (成员、小组、额外聚会、培训&活动（课程与活动两种形态）、四十天守望模块与配对、账户) must offer
 the full set its users need: **Create, Read, Update, Delete**. If the API supports an
 operation, the UI must expose it (or the omission must be a deliberate,
 documented decision). A page that can only create + list is incomplete.
+The documented exception: 教会设置 (`/church`) is read + update only — the
+church row is a seeded singleton (one deployment, one church) and the module
+catalog is code, so neither can be created or deleted from the UI.
 
 ### G2 — Access control is enforced server-side AND reflected in the UI
+Three independent dimensions, all of them enforced in `route.ts` first and
+only then reflected in the UI: the account's **role**, its **hall**, and
+whether the **module** owning the path is enabled for this church.
+- **Module enablement (附加模块):** an add-on module (四十天守望 today) can be
+  switched off in 教会设置. A request for a path a disabled module owns is
+  refused **404** by the gate — including the public mentor form, whose links
+  must close with the feature. 404 rather than 403 on purpose: no role and no
+  hall can reach it, because for this church the feature does not exist.
+  Which paths a module owns comes from `moduleForApiPath` / `moduleForNavHref`
+  in `packages/shared` — never re-derive it. The UI's half: the shell hides the
+  nav entry (`visibleItems`), a page owned by a disabled module skips its
+  fetches and renders `<ModuleDisabled />` instead of an error, and
+  `/church*` + `/auth*` + every core path can never be gated.
 - **Hall scope (多堂会):** the session carries `hall` (null = 全堂权限). In
   `route.ts`, a hall-scoped account's reads are filtered to its own hall and its
   writes are **forced** onto that hall server-side — never trust a client-sent
@@ -75,20 +137,28 @@ documented decision). A page that can only create + list is incomplete.
   `hallFilter = hallScope ?? q.get('hall_id')` — the **session's own hall always
   wins**, so a hall-pinned account can never widen its view by sending a
   different `hall_id`; that precedence is the security property. Every
-  hall-owned list GET (成员/小组/聚会/循环聚会/培训/守望配对 + 牧养总览) reads
-  `hallFilter`, so switching congregation moves the whole app — dashboard KPIs
-  included — not just some pages.
+  hall-owned list GET (成员/小组/聚会/循环聚会/培训/守望配对/主日点名 + 牧养总览)
+  reads `hallFilter`, so switching congregation moves the whole app — dashboard
+  KPIs included — not just some pages.
+  **主日点名 is the one read that refuses to answer "all congregations"**: a
+  sheet is always exactly one hall, so with no narrowing (and more than one
+  hall) it is a 400 rather than three member lists merged into one grid.
 - **Server (authoritative):** every non-public API path goes through the gate in
   `route.ts`. Writes are denied for `readonly`; account management
-  (`/accounts*`, both **read and write**) is `super_admin` only; `DELETE` is
-  `super_admin`/`admin` only. Sensitive reads (account emails/roles) must be
-  role-gated too — never rely on "GET is harmless".
+  (`/accounts*`, both **read and write**) is `super_admin` only; church
+  settings (`/church*`) are readable by any signed-in account but **writable
+  only by `super_admin`** — changing the church's name or switching a module
+  off affects everyone; `DELETE` is `super_admin`/`admin` only. Sensitive reads
+  (account emails/roles) must be role-gated too — never rely on "GET is
+  harmless".
 - **Client (UX):** never render an action a user's role cannot perform. Fetch the
   session role (`/api/auth/me`) and hide/disable nav items, buttons, and whole
   pages the role isn't allowed to use. A button that only ever returns 403 is a
   bug. The public exceptions (no session) are the mentor daily form under
   `/api/discipleship/form/*`, the training self-enrollment form under
-  `/api/trainings/enroll/*` (+ `/api/auth/*`) — each a narrow, specific handler.
+  `/api/trainings/enroll/*`, **`GET /api/church`** (the login card and both
+  public forms render the church's name before anyone signs in; writes stay
+  super_admin) (+ `/api/auth/*`) — each a narrow, specific handler.
 
 ### G3 — Every destructive action shows a confirmation
 Any delete/remove/detach/irreversible action (`api.delete(...)`, or a mutation
@@ -99,7 +169,10 @@ like 移除/清空/重置 that discards data) MUST go through the shared
 ### G4 — One mechanism, not per-page reimplementations (altitude)
 Reuse the shared primitives instead of re-rolling them per page:
 `Modal`, `Field`, `PasswordInput`, `useConfirm`, `useToast`, `RoleBadge`,
-`Avatar`, `PairProgressModal`, `exportRows`/`exportMatrix` (`lib/export.ts`),
+`Avatar`, `PairProgressModal`, `MonthPicker`/`SheetTick` (the pieces the 主日
+and 小组 attendance sheets share), `Segmented` (every segmented control — the
+group card's 小组/会前/主日 tabs and the 出席/请假/缺席 picker),
+`exportRows`/`exportMatrix` (`lib/export.ts`),
 `api` (`lib/api.ts`), and the label/style helpers in `lib/labels.ts`
 (`roleTagStyle`, `roleDot`, `memberRoleZh`, `positionZh`, status/category
 classes). New code that duplicates one of these is a finding — name the helper
@@ -145,7 +218,9 @@ two CJK glyphs clips the moment the same label is English.
 The church is in one place, so a 10:00 service reads 10:00 on every screen.
 All date/time work goes through `lib/time.ts` (`churchParts`,
 `churchInstant`, `startOfChurchDay`, `addChurchDays`, `churchDayOfWeek`,
-`churchDateKey`, `toChurchInput` / `fromChurchInput`, `endOfChurchDate`).
+`churchDateKey`, `toChurchInput` / `fromChurchInput`, `endOfChurchDate`,
+and the calendar-label helpers `weekdayDatesOfMonth` / `sundaysOfMonth` /
+`isSundayDate` that both attendance sheets take their columns from).
 Never call `getHours` / `setHours` / `getFullYear` / `getMonth` / `getDate` /
 `getTimezoneOffset` on a `Date` in app code — they read the *runtime's* zone,
 which is UTC inside the Worker and the viewer's own zone in the browser, so
@@ -174,7 +249,13 @@ and below. Light theme only — no dark-mode branches or `data-theme` code.
   a translated label. Use the stored code (e.g. `DisplayRole`), or the UI breaks
   the moment the language changes.
 - The public pages (`/login`, `/d/[token]`, `/enroll/[id]`) have no session and
-  so render in the default language; API error messages are English.
+  so render in the default language; API error messages are English. The
+  church's **name** is the one thing on them that is neither: it is data on the
+  `church` record, identical in all three languages, so those pages fetch the
+  public `GET /api/church` instead of translating it (`form.privacy` takes it
+  as a `{church}` placeholder). The build-time `<title>` (`app/layout.tsx`) and
+  the PWA manifest (`app/manifest.ts`) cannot read the database and stay
+  per-deployment literals — the only two left.
 - A user-facing rename stops at the API boundary. The 四十天守望 **模块 /
   module** is `discipleship_programs` in the database: the table, its columns,
   `program_id` and `/api/discipleship/programs` all keep the "program" name,
